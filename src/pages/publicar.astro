@@ -1,0 +1,104 @@
+---
+import Layout from '../layouts/Layout.astro';
+import Icon from '../components/Icon.astro';
+import { categories, conditions, formats, provinces } from '../lib/catalog.mjs';
+import { FormError, submitMachine, text } from '../lib/submissions.mjs';
+
+let form;
+let error = '';
+if (Astro.request.method === 'POST') {
+  try {
+    form = await Astro.request.formData();
+    const ref = await submitMachine(form);
+    return Astro.redirect(`/publicar?enviada=${ref}`, 303);
+  } catch (failure) {
+    if (!(failure instanceof FormError)) console.error(failure);
+    error = failure instanceof FormError ? failure.message : 'No se pudo guardar el aviso. Revisá los archivos y probá de nuevo.';
+    Astro.response.status = failure instanceof FormError ? 400 : 500;
+  }
+}
+const value = (field) => text(form, field, 1600);
+const sent = /^AM-[A-F0-9]{10}$/.test(Astro.url.searchParams.get('enviada') ?? '') ? Astro.url.searchParams.get('enviada') : '';
+---
+<Layout title="Publicar una máquina" page="publicar">
+  <div class="wrap interior">
+    <a class="back-link" href="/"><Icon name="back" size={18} /> Volver al catálogo</a>
+    <header class="page-heading"><p class="eyebrow">Vender maquinaria</p><h1>{sent ? 'Aviso recibido' : 'Publicá tu máquina'}</h1>{!sent && <p>Completá los datos básicos, agregá fotos y revisá cómo quedaría tu aviso.</p>}</header>
+    <div class="form-card">
+      {sent ? <><p class="message" role="status">Tu aviso <strong>{sent}</strong> quedó pendiente de revisión.</p><a class="button button-primary" href="/">Volver al catálogo</a></> : <>
+        {error && <p class="message message-error" role="alert">{error} Volvé a seleccionar las fotos antes de enviar.</p>}
+        <form class="form-stack" id="listing" method="post" enctype="multipart/form-data">
+          <fieldset><legend>1. Datos del equipo</legend>
+            <label>Título del aviso<input name="title" required maxlength="90" placeholder="Ej. Lavadora de bidones de 20 L" value={value('title')} /></label>
+            <div class="field-grid">
+              <label>Categoría<select name="category" required><option value="">Elegí una categoría</option>{Object.entries(categories).map(([key, label]) => <option value={key} selected={value('category') === key}>{label}</option>)}</select></label>
+              <label>Provincia<select name="province" required><option value="">Elegí la provincia</option>{provinces.map(province => <option value={province} selected={value('province') === province}>{province}</option>)}</select></label>
+              <label>Formato<select name="format" required><option value="">Elegí un formato</option>{Object.entries(formats).map(([key, label]) => <option value={key} selected={value('format') === key}>{label}</option>)}</select></label>
+              <label>Estado<select name="condition" required><option value="">Elegí el estado</option>{Object.entries(conditions).map(([key, label]) => <option value={key} selected={value('condition') === key}>{label}</option>)}</select></label>
+              <label>Marca <small>Opcional</small><input name="brand" maxlength="60" value={value('brand')} /></label>
+              <label>Modelo <small>Opcional</small><input name="model" maxlength="60" value={value('model')} /></label>
+              <label>Medida del envase <small>Opcional</small><input name="format_detail" maxlength="70" placeholder="Ej. 12 y 20 L" value={value('format_detail')} /></label>
+              <label>Capacidad <small>Opcional</small><input name="capacity" maxlength="60" placeholder="Ej. 120 bidones/h" value={value('capacity')} /></label>
+            </div>
+            <label>Descripción<textarea name="description" required maxlength="1600" placeholder="Contá qué incluye y si se puede ver funcionando.">{value('description')}</textarea></label>
+          </fieldset>
+          <fieldset><legend>2. Fotos y enlace de video</legend>
+            <label>Fotos del equipo <small id="photo-hint">De 1 a 5 fotos en JPG, PNG o WebP, hasta 3 MB cada una. Mostrá el equipo completo, la placa y el área de trabajo. Evitá teléfonos o direcciones en las fotos.</small><input type="file" name="photos" id="photos" multiple required accept="image/jpeg,image/png,image/webp" aria-describedby="photo-hint" /></label>
+            <div id="photos-preview" class="preview-images" aria-label="Vista previa de las fotos"></div>
+            <label>Enlace de video <small>Opcional · YouTube o Vimeo</small><input type="url" name="video" maxlength="300" placeholder="https://www.youtube.com/watch?v=…" value={value('video')} /></label>
+          </fieldset>
+          <fieldset><legend>3. Precio y contacto</legend>
+            <div class="field-grid">
+              <label>Precio <small>Vacío si preferís «Consultar»</small><input name="price" type="number" min="1" max="99999999999" step="1" value={value('price')} /></label>
+              <label>Moneda<select name="currency"><option value="ARS">Pesos (ARS)</option><option value="USD" selected={value('currency') === 'USD'}>Dólares (USD)</option></select></label>
+              <label>Tu nombre<input name="seller" required maxlength="80" autocomplete="name" value={value('seller')} /></label>
+              <label>Teléfono o correo<input name="contact" required maxlength="100" value={value('contact')} /></label>
+            </div>
+            <p class="field-hint">Tu contacto queda en el panel. Como es una demo, usá datos de prueba.</p>
+          </fieldset>
+          <button class="button button-outline" id="show-preview" type="button" hidden>Ver vista previa</button>
+          <div class="form-preview" id="listing-preview" tabindex="-1" hidden><p class="eyebrow">Vista previa del aviso</p><strong></strong><p data-summary></p><p data-description></p></div>
+          <button class="button button-primary" type="submit">Enviar a revisión <Icon name="arrow" size={18} /></button>
+        </form>
+      </>}
+    </div>
+  </div>
+  <script>
+    const input = document.querySelector<HTMLInputElement>('#photos');
+    const thumbs = document.querySelector('#photos-preview');
+    const form = document.querySelector<HTMLFormElement>('#listing');
+    const button = document.querySelector<HTMLButtonElement>('#show-preview');
+    const preview = document.querySelector<HTMLElement>('#listing-preview');
+    let urls: string[] = [];
+    input?.addEventListener('change', () => {
+      urls.forEach(url => URL.revokeObjectURL(url));
+      urls = [];
+      thumbs?.replaceChildren();
+      const files = Array.from(input.files ?? []);
+      const invalid = files.length > 5 || files.some(file => file.size > 3 * 1024 * 1024 || !['image/jpeg', 'image/png', 'image/webp'].includes(file.type));
+      input.setCustomValidity(invalid ? 'Elegí hasta cinco fotos JPG, PNG o WebP de hasta 3 MB.' : '');
+      if (invalid) { input.reportValidity(); return; }
+      for (const [index, file] of files.entries()) {
+        const img = new Image();
+        const url = URL.createObjectURL(file);
+        urls.push(url);
+        img.src = url;
+        img.alt = `Foto seleccionada ${index + 1}`;
+        thumbs?.append(img);
+      }
+    });
+    if (button && form && preview) {
+      button.hidden = false;
+      button.addEventListener('click', () => {
+        const fields = new FormData(form);
+        preview.querySelector('strong')!.textContent = String(fields.get('title') || 'Título del equipo');
+        const price = Number(fields.get('price'));
+        const amount = price > 0 ? new Intl.NumberFormat('es-AR', { style: 'currency', currency: String(fields.get('currency')), maximumFractionDigits: 0 }).format(price) : 'Consultar precio';
+        preview.querySelector('[data-summary]')!.textContent = [fields.get('province'), fields.get('capacity'), amount].filter(Boolean).join(' · ');
+        preview.querySelector('[data-description]')!.textContent = String(fields.get('description') || 'Agregá una descripción para completar el aviso.');
+        preview.hidden = false;
+        preview.focus();
+      });
+    }
+  </script>
+</Layout>

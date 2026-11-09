@@ -1,0 +1,71 @@
+---
+import Layout from '../layouts/Layout.astro';
+import Icon from '../components/Icon.astro';
+import { adminKey, adminSession, db, getPhotos, safeEqual } from '../lib/db.mjs';
+import { categories, conditions, formats, priceLabel } from '../lib/catalog.mjs';
+import { text } from '../lib/submissions.mjs';
+
+Astro.response.headers.set('Cache-Control', 'no-store');
+const cookie = 'aguamaquinas_panel';
+const authorized = safeEqual(Astro.cookies.get(cookie)?.value, adminSession());
+const statuses = { pending: 'Pendiente', published: 'Publicado', paused: 'Pausado', sold: 'Vendido' };
+let error = '';
+if (Astro.request.method === 'POST') {
+  const form = await Astro.request.formData();
+  const action = text(form, 'action', 15);
+  if (action === 'login') {
+    if (safeEqual(text(form, 'key', 250), adminKey())) {
+      Astro.cookies.set(cookie, adminSession(), { path: '/', maxAge: 3600, httpOnly: true, sameSite: 'strict', secure: Astro.url.protocol === 'https:' });
+      return Astro.redirect('/panel', 303);
+    }
+    error = 'La clave no coincide.';
+    Astro.response.status = 401;
+  } else if (!authorized) {
+    error = 'Ingresá al panel para continuar.';
+    Astro.response.status = 403;
+  } else if (action === 'logout') {
+    Astro.cookies.delete(cookie, { path: '/' });
+    return Astro.redirect('/panel', 303);
+  } else if (['published', 'paused', 'sold'].includes(action)) {
+    db().prepare('UPDATE machines SET status = ? WHERE ref = ? AND sample = 0').run(action, text(form, 'ref', 30));
+    return Astro.redirect('/panel', 303);
+  }
+}
+const machines = authorized ? db().prepare("SELECT * FROM machines WHERE sample = 0 ORDER BY status != 'pending', id DESC").all() : [];
+const inquiries = authorized ? db().prepare('SELECT * FROM inquiries ORDER BY id DESC').all() : [];
+---
+<Layout title="Panel de Agua Máquinas" page="panel">
+  <div class="wrap interior">
+    <a class="back-link" href="/"><Icon name="back" size={18} /> Volver al catálogo</a>
+    <header class="page-heading"><p class="eyebrow">Gestión de la demo</p><h1>Panel de Agua Máquinas</h1><p>Revisá publicaciones y consultas en un mismo lugar.</p></header>
+    {error && <p class="message message-error" role="alert">{error}</p>}
+    {authorized ? <>
+      <section class="panel-section" aria-labelledby="panel-machines"><h2 id="panel-machines">Avisos enviados <small>({machines.length})</small></h2>
+        {!machines.length && <p>Los avisos que se envíen desde «Publicar máquina» aparecen acá.</p>}
+        {machines.map(machine => <article class="panel-record">
+          <h3>{machine.title} <span class="tag">{statuses[machine.status]}</span></h3>
+          <p><small>{machine.ref} · {categories[machine.category]} · {machine.province} · {conditions[machine.condition]} · {priceLabel(machine)}</small></p>
+          <p>{machine.brand} {machine.model} · {machine.format_detail || formats[machine.format]} · {machine.capacity || 'Capacidad a confirmar'}</p>
+          <p>{machine.description}</p>
+          <p><strong>Vendedor:</strong> {machine.seller} · {machine.contact}</p>
+          <div class="thumbs">{getPhotos(machine).map((photo, index) => <a href={photo}><img src={photo} loading="lazy" alt={`Ampliar foto ${index + 1} de ${machine.title}`} /></a>)}</div>
+          {machine.video && <p><a href={machine.video} target="_blank" rel="noopener noreferrer">Revisar enlace de video</a></p>}
+          <form method="post"><input type="hidden" name="ref" value={machine.ref} />
+            {machine.status !== 'published' && <button class="button button-primary" name="action" value="published">{machine.status === 'pending' ? 'Aprobar y publicar' : 'Volver a publicar'}</button>}
+            {machine.status === 'published' && <button class="button button-outline" name="action" value="paused">Pausar aviso</button>}
+            {machine.status !== 'sold' && <button class="button button-outline" name="action" value="sold">Marcar como vendido</button>}
+          </form>
+        </article>)}
+      </section>
+      <section class="panel-section" aria-labelledby="panel-inquiries"><h2 id="panel-inquiries">Consultas <small>({inquiries.length})</small></h2>
+        {!inquiries.length && <p>Todavía no hay consultas.</p>}
+        {inquiries.map(item => <article class="panel-record"><h3>{item.name}</h3><p><small>{item.machine_ref || 'Pedido general'} · {item.origin}</small></p><p>{item.message}</p><p><strong>Contacto:</strong> {item.contact}</p></article>)}
+      </section>
+      <form method="post"><button class="button button-outline" name="action" value="logout">Cerrar sesión</button></form>
+    </> : <form method="post" class="form-card form-stack">
+      <input type="hidden" name="action" value="login" />
+      <label>Clave del panel<input type="password" name="key" required maxlength="250" autocomplete="current-password" /></label>
+      <button type="submit" class="button button-primary">Ingresar</button>
+    </form>}
+  </div>
+</Layout>

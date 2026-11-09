@@ -1,0 +1,44 @@
+---
+import Layout from '../layouts/Layout.astro';
+import Icon from '../components/Icon.astro';
+import { db } from '../lib/db.mjs';
+import { FormError, submitInquiry, text } from '../lib/submissions.mjs';
+
+const reference = Astro.url.searchParams.get('equipo') ?? '';
+const origin = Astro.url.searchParams.get('origen');
+const machine = reference ? db().prepare("SELECT title, ref FROM machines WHERE ref = ? AND status = 'published'").get(reference) : null;
+let form;
+let error = '';
+if (Astro.request.method === 'POST') {
+  try {
+    form = await Astro.request.formData();
+    if (reference && !machine) throw new FormError('Este equipo ya no está disponible. Podés hacer un pedido general.');
+    submitInquiry(form, machine?.ref ?? '', origin);
+    return Astro.redirect('/consulta?enviada=1', 303);
+  } catch (failure) {
+    if (!(failure instanceof FormError)) console.error(failure);
+    error = failure instanceof FormError ? failure.message : 'No se pudo guardar la consulta. Probá de nuevo.';
+    Astro.response.status = failure instanceof FormError ? 400 : 500;
+  }
+}
+const sent = Astro.url.searchParams.get('enviada') === '1';
+---
+<Layout title={machine ? 'Consultar por un equipo' : 'Pedir un equipo'} page="consulta">
+  <div class="wrap interior">
+    <a class="back-link" href={machine ? `/equipos/${machine.ref}${origin === 'alloatti' ? '?origen=alloatti' : ''}` : '/'}><Icon name="back" size={18} />{machine ? 'Volver a la ficha' : 'Volver al catálogo'}</a>
+    <header class="page-heading"><p class="eyebrow">Consultas</p><h1>{sent ? 'Consulta guardada' : machine ? 'Consultar por esta máquina' : '¿Qué equipo necesitás?'}</h1>
+      {!sent && <p>{machine ? `${machine.title} · ${machine.ref}` : 'Contanos qué querés envasar, qué capacidad buscás y en qué provincia estás.'}</p>}</header>
+    <div class="form-card">
+      {sent ? <><p class="message" role="status">Tu consulta quedó en la bandeja de demostración.</p><a class="button button-primary" href="/">Volver al catálogo</a></> : <>
+        {error && <p class="message message-error" role="alert">{error}</p>}
+        <form class="form-stack" method="post">
+          <label>Tu nombre<input name="name" required maxlength="80" autocomplete="name" value={text(form, 'name', 80)} /></label>
+          <label>Teléfono o correo<input name="contact" required maxlength="100" value={text(form, 'contact', 100)} /></label>
+          <label>Tu consulta<textarea name="message" required maxlength="1200" placeholder={machine ? 'Ejemplo: ¿Se puede ver funcionando?' : 'Ejemplo: busco una llenadora para bidones de 20 L en Córdoba.'}>{text(form, 'message', 1200)}</textarea></label>
+          <p class="field-hint">Esto es una demo. Usá datos de prueba.</p>
+          <button class="button button-primary" type="submit">Enviar consulta <Icon name="arrow" size={18} /></button>
+        </form>
+      </>}
+    </div>
+  </div>
+</Layout>

@@ -1,0 +1,25 @@
+---
+import Icon from './Icon.astro';
+import { categories, conditions, formats, priceLabel } from '../lib/catalog.mjs';
+import { getPhotos } from '../lib/db.mjs';
+const { machine, params, priority } = Astro.props;
+const photo = getPhotos(machine)[0];
+const query = params.toString();
+const href = `/equipos/${machine.ref}${query ? `?${query}` : ''}`;
+---
+<article class="machine-card">
+  <a href={href} class="card-image" tabindex="-1" aria-hidden="true">
+    <img src={photo} alt="" width="540" height="360" loading={priority ? 'eager' : 'lazy'} decoding="async" />
+    <span class:list={['tag', `tag-${machine.condition}`]}>{conditions[machine.condition]}</span>
+  </a>
+  <div class="card-body">
+    <div class="card-meta"><span>{categories[machine.category]}<span class="visually-hidden"> · {conditions[machine.condition]}</span></span><span>{machine.ref}</span></div>
+    <h3><a href={href}>{machine.title}</a></h3>
+    <p class="card-location"><Icon name="pin" size={16} />{machine.province}</p>
+    <div class="card-specs">
+      <div><small>Capacidad</small><strong>{machine.capacity || 'A confirmar'}</strong></div>
+      <div><small>Formato</small><strong>{machine.format_detail || (machine.format === 'otros' ? '—' : formats[machine.format])}</strong></div>
+    </div>
+    <div class="card-bottom"><strong>{priceLabel(machine)}</strong><a href={href} aria-label={`Ver ficha de ${machine.title}`}>Ver ficha <Icon name="arrow" size={16} /></a></div>
+  </div>
+</article>

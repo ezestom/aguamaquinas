@@ -1,0 +1,42 @@
+---
+import Icon from '../components/Icon.astro';
+import '../styles/global.css';
+const { title = 'Maquinaria usada para agua y soda', page = 'catalogo' } = Astro.props;
+const origin = Astro.url.searchParams.get('origen') === 'alloatti' ? '?origen=alloatti' : '';
+---
+<!doctype html>
+<html lang="es-AR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex, nofollow" />
+    <meta name="theme-color" content="#07384b" />
+    <link rel="icon" href="/logo.png" />
+    <title>{title} | Agua Máquinas</title>
+  </head>
+  <body>
+    <a class="skip-link" href="#contenido">Ir al contenido</a>
+    <header class="topbar">
+      <div class="wrap topbar-inner">
+        <a class="brand" href={'/' + origin} aria-label="Agua Máquinas, catálogo">
+          <span class="brand-icon"><img src="/logo.png" alt="" width="34" height="34" /></span>
+          <span><strong>Agua Máquinas</strong><small>Maquinaria para agua y soda</small></span>
+        </a>
+        <nav aria-label="Principal" class="top-nav">
+          <a href={'/' + origin} aria-current={page === 'catalogo' ? 'page' : undefined}>Catálogo</a>
+          <a href={'/consulta' + origin}>Pedir un equipo</a>
+        </nav>
+        <a class="button button-lime" href="/publicar"><Icon name="plus" size={18} /><span>Publicar máquina</span></a>
+      </div>
+    </header>
+    <main id="contenido"><slot /></main>
+    <footer class="site-footer">
+      <div class="wrap footer-inner">
+        <div><strong>Agua Máquinas</strong><p>Catálogo de demostración · Argentina</p></div>
+        <nav aria-label="Pie de página">
+          <a href={'/' + origin}>Inicio</a><a href={'/consulta' + origin}>Contacto</a><a href="https://www.alloatti.com/?utm_source=aguamaquinas&utm_medium=referido">Alloatti</a><a href="/panel">Panel</a>
+        </nav>
+      </div>
+    </footer>
+  </body>
+</html>

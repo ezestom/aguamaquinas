@@ -1,0 +1,85 @@
+---
+import Layout from '../layouts/Layout.astro';
+import Icon from '../components/Icon.astro';
+import MachineCard from '../components/MachineCard.astro';
+import { categories, conditions, formats, matches, provinces } from '../lib/catalog.mjs';
+import { db } from '../lib/db.mjs';
+
+const params = Astro.url.searchParams;
+const category = Object.hasOwn(categories, params.get('categoria')) ? params.get('categoria') : '';
+const origin = params.get('origen') === 'alloatti' ? 'alloatti' : '';
+const filters = new URLSearchParams();
+for (const key of ['q', 'provincia', 'formato', 'estado', 'origen']) {
+  if (params.get(key)) filters.set(key, params.get(key).slice(0, 120));
+}
+if (category) filters.set('categoria', category);
+const machines = db().prepare("SELECT * FROM machines WHERE status = 'published' ORDER BY sample, CASE WHEN sample = 0 THEN -id ELSE id END")
+  .all().filter(machine => matches(machine, filters));
+const popular = ['', 'lavadoras', 'llenadoras', 'lineas', 'soda', 'tanques', 'tratamiento'];
+const extra = Object.keys(categories).filter(key => !popular.includes(key));
+const categoryUrl = (key) => {
+  const next = new URLSearchParams(filters);
+  if (key) next.set('categoria', key); else next.delete('categoria');
+  return `/${next.size ? `?${next}` : ''}#catalogo`;
+};
+const reset = new URLSearchParams();
+if (origin) reset.set('origen', origin);
+if (category) reset.set('categoria', category);
+const filterCount = ['provincia', 'formato', 'estado'].filter(key => filters.has(key)).length;
+---
+<Layout>
+  <section class="intro">
+    <div class="wrap intro-inner">
+      <div class="intro-copy">
+        <p class="eyebrow"><span></span> Catálogo industrial · Argentina</p>
+        <h1>Maquinaria para<br class="mobile-break" /> agua y soda<span>.</span></h1>
+        <p>Encontrá equipos usados para lavar, llenar, tapar y envasar.</p>
+      </div>
+      <aside class="demo-notice"><Icon name="info" size={19} /><div><strong>Catálogo de demostración</strong><small>Las publicaciones son ejemplos.</small></div></aside>
+    </div>
+  </section>
+  <div class="catalog-nav">
+    <div class="wrap">
+      <form class="search-form" action="/#catalogo" role="search">
+        <div class="search-input"><Icon name="search" /><label class="visually-hidden" for="search">Buscar por equipo, marca o referencia</label><input id="search" name="q" type="search" maxlength="120" placeholder="Equipo, marca o referencia" value={filters.get('q') ?? ''} /></div>
+        {origin && <input type="hidden" name="origen" value={origin} />}
+        <button class="button button-primary" type="submit">Buscar</button>
+      </form>
+      <nav class="tabs" aria-label="Categorías de equipos">
+        {popular.map(key => <a href={categoryUrl(key)} aria-current={key === category ? 'page' : undefined}>{key ? categories[key] : 'Todos los equipos'}</a>)}
+        <details class="more-tabs"><summary class:list={[extra.includes(category) && 'selected']}>{extra.includes(category) ? categories[category] : 'Más categorías'}</summary><div>{extra.map(key => <a href={categoryUrl(key)} aria-current={key === category ? 'page' : undefined}>{categories[key]}</a>)}</div></details>
+      </nav>
+    </div>
+  </div>
+  <section class="wrap catalog" id="catalogo" aria-labelledby="catalog-title">
+    <div class="catalog-heading">
+      <div><h2 id="catalog-title">{category ? categories[category] : 'Equipos disponibles'}</h2><p>{machines.length} {machines.length === 1 ? 'equipo' : 'equipos'}{filters.get('q') && ` para «${filters.get('q')}»`}</p></div>
+      <a href={`/consulta${origin ? '?origen=alloatti' : ''}`} class="help-link">¿Buscás algo puntual? <Icon name="arrow" size={17} /></a>
+    </div>
+    <div class="catalog-columns">
+      <aside class="filter-side">
+        <details class="filter-box">
+          <summary><Icon name="filters" size={19} /> Filtrar equipos {filterCount > 0 && <span class="filter-count">{filterCount}</span>}</summary>
+          <form action="/#catalogo">
+            <div class="filter-heading"><strong><Icon name="filters" size={19} /> Filtros</strong><a href={`/${reset.size ? `?${reset}` : ''}#catalogo`}>Limpiar</a></div>
+            {['categoria', 'q', 'origen'].map(key => filters.has(key) && <input type="hidden" name={key} value={filters.get(key)} />)}
+            <label>Provincia<select name="provincia"><option value="">Todas</option>{provinces.map(province => <option value={province} selected={filters.get('provincia') === province}>{province}</option>)}</select></label>
+            <label>Formato<select name="formato"><option value="">Todos</option>{Object.entries(formats).map(([key, label]) => <option value={key} selected={filters.get('formato') === key}>{label}</option>)}</select></label>
+            <label>Estado<select name="estado"><option value="">Todos</option>{Object.entries(conditions).map(([key, label]) => <option value={key} selected={filters.get('estado') === key}>{label}</option>)}</select></label>
+            <button type="submit" class="button button-outline">Aplicar filtros</button>
+          </form>
+        </details>
+        <div class="side-note"><p class="eyebrow">Equipos nuevos</p><strong>¿Estás por renovar tu línea?</strong><a href="https://www.alloatti.com/maquina-para-bidones-retornables?utm_source=aguamaquinas&utm_medium=referido">Ver equipos Alloatti <Icon name="external" size={16} /></a></div>
+      </aside>
+      {machines.length ? <div class="cards">{machines.map((machine, index) => <MachineCard machine={machine} params={filters} priority={index < 3} />)}</div> : <div class="empty"><Icon name="search" size={32} /><h3>No encontramos equipos con esa búsqueda</h3><p>Probá con otra palabra o contanos qué máquina necesitás.</p><a class="button button-primary" href={`/consulta${origin ? '?origen=alloatti' : ''}`}>Pedir un equipo</a></div>}
+    </div>
+  </section>
+  <script>
+    const desktop = window.matchMedia('(min-width: 900px)');
+    const filters = document.querySelector<HTMLDetailsElement>('.filter-box');
+    if (filters) {
+      filters.open = desktop.matches;
+      desktop.addEventListener('change', event => { filters.open = event.matches; });
+    }
+  </script>
+</Layout>

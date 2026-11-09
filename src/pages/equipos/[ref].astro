@@ -1,0 +1,43 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import Icon from '../../components/Icon.astro';
+import { categories, conditions, formats, priceLabel } from '../../lib/catalog.mjs';
+import { db, getPhotos } from '../../lib/db.mjs';
+const machine = db().prepare("SELECT * FROM machines WHERE ref = ? AND status = 'published'").get(Astro.params.ref);
+if (!machine) Astro.response.status = 404;
+const photos = machine ? getPhotos(machine) : [];
+const returnQuery = new URLSearchParams(Astro.url.searchParams);
+const back = `/${returnQuery.size ? `?${returnQuery}` : ''}#catalogo`;
+const inquiry = new URLSearchParams({ equipo: machine?.ref ?? '' });
+if (returnQuery.get('origen') === 'alloatti') inquiry.set('origen', 'alloatti');
+---
+<Layout title={machine?.title ?? 'Equipo no disponible'} page="ficha">
+  <div class="wrap interior">
+    <a class="back-link" href={back}><Icon name="back" size={18} /> Volver a los resultados</a>
+    {machine ? <div class="detail-grid">
+      <section class="detail-gallery" aria-label="Fotos del equipo">
+        <img src={photos[0]} width="900" height="600" alt={`Vista de ${machine.title.toLowerCase()}`} />
+        {photos.length > 1 && <div class="thumbs">{photos.map((photo, index) => <a href={photo}><img src={photo} loading="lazy" alt={`Ampliar foto ${index + 1}`} /></a>)}</div>}
+      </section>
+      <section class="detail-copy">
+        <p class="eyebrow">{categories[machine.category]} · {machine.ref}</p>
+        <h1>{machine.title}</h1>
+        <p class="card-location"><Icon name="pin" size={19} />{machine.province}</p>
+        <span class:list={['tag', `tag-${machine.condition}`]}>{conditions[machine.condition]}</span>
+        <dl>
+          <div><dt>Capacidad</dt><dd>{machine.capacity || 'A confirmar'}</dd></div>
+          <div><dt>Formato</dt><dd>{machine.format_detail || formats[machine.format]}</dd></div>
+          <div><dt>Marca</dt><dd>{machine.brand || 'A confirmar'}</dd></div>
+          <div><dt>Modelo</dt><dd>{machine.model || 'A confirmar'}</dd></div>
+        </dl>
+        <p class="detail-price">{priceLabel(machine)}</p>
+        <div class="detail-actions">
+          <a class="button button-primary" href={`/consulta?${inquiry}`}>Consultar por esta máquina <Icon name="arrow" size={18} /></a>
+          {machine.video && <a class="button button-outline" href={machine.video} target="_blank" rel="noopener noreferrer"><Icon name="play" size={17} /> Ver video <Icon name="external" size={14} /></a>}
+        </div>
+        <div class="detail-desc"><h2>Sobre el equipo</h2><p>{machine.description}</p></div>
+        {machine.sample === 1 && <p class="sample-note">Equipo ficticio. La imagen es ilustrativa y el precio es de ejemplo.</p>}
+      </section>
+    </div> : <div class="empty"><h1>Equipo no disponible</h1><p>Podés buscar otro equipo o dejarnos un pedido.</p><a class="button button-primary" href="/consulta">Pedir un equipo</a></div>}
+  </div>
+</Layout>
