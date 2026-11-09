@@ -24,14 +24,14 @@ if (Astro.request.method === 'POST') {
 const sent = Astro.url.searchParams.get('enviada') === '1';
 ---
 <Layout title={machine ? 'Consultar por un equipo' : 'Pedir un equipo'} page="consulta">
-  <div class="wrap interior">
+  <div class="wrap interior form-interior">
     <a class="back-link" href={machine ? `/equipos/${machine.ref}${origin === 'alloatti' ? '?origen=alloatti' : ''}` : '/'}><Icon name="back" size={18} />{machine ? 'Volver a la ficha' : 'Volver al catálogo'}</a>
     <header class="page-heading"><p class="eyebrow">Consultas</p><h1>{sent ? 'Consulta guardada' : machine ? 'Consultar por esta máquina' : '¿Qué equipo necesitás?'}</h1>
       {!sent && <p>{machine ? `${machine.title} · ${machine.ref}` : 'Contanos qué querés envasar, qué capacidad buscás y en qué provincia estás.'}</p>}</header>
     <div class="form-card">
       {sent ? <><p class="message" role="status">Tu consulta quedó en la bandeja de demostración.</p><a class="button button-primary" href="/">Volver al catálogo</a></> : <>
         {error && <p class="message message-error" role="alert">{error}</p>}
-        <form class="form-stack" method="post">
+        <form class="form-stack" method="post" data-astro-reload>
           <label>Tu nombre<input name="name" required maxlength="80" autocomplete="name" value={text(form, 'name', 80)} /></label>
           <label>Teléfono o correo<input name="contact" required maxlength="100" value={text(form, 'contact', 100)} /></label>
           <label>Tu consulta<textarea name="message" required maxlength="1200" placeholder={machine ? 'Ejemplo: ¿Se puede ver funcionando?' : 'Ejemplo: busco una llenadora para bidones de 20 L en Córdoba.'}>{text(form, 'message', 1200)}</textarea></label>

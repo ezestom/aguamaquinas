@@ -7,7 +7,7 @@ const machine = db().prepare("SELECT * FROM machines WHERE ref = ? AND status = 
 if (!machine) Astro.response.status = 404;
 const photos = machine ? getPhotos(machine) : [];
 const returnQuery = new URLSearchParams(Astro.url.searchParams);
-const back = `/${returnQuery.size ? `?${returnQuery}` : ''}#catalogo`;
+const back = `/${returnQuery.size ? `?${returnQuery}` : ''}`;
 const inquiry = new URLSearchParams({ equipo: machine?.ref ?? '' });
 if (returnQuery.get('origen') === 'alloatti') inquiry.set('origen', 'alloatti');
 ---

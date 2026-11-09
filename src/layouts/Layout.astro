@@ -1,18 +1,23 @@
 ---
 import Icon from '../components/Icon.astro';
+import SiteFooter from '../components/SiteFooter.astro';
+import { ClientRouter } from 'astro:transitions';
+import interLatin from '@fontsource-variable/inter/files/inter-latin-wght-normal.woff2?url';
 import '../styles/global.css';
 const { title = 'Maquinaria usada para agua y soda', page = 'catalogo' } = Astro.props;
 const origin = Astro.url.searchParams.get('origen') === 'alloatti' ? '?origen=alloatti' : '';
 ---
 <!doctype html>
-<html lang="es-AR">
+<html lang="es-AR" transition:animate="none">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="robots" content="noindex, nofollow" />
-    <meta name="theme-color" content="#07384b" />
+    <meta name="theme-color" content="#ffffff" />
     <link rel="icon" href="/logo.png" />
+    <link rel="preload" href={interLatin} as="font" type="font/woff2" crossorigin="anonymous" />
     <title>{title} | Agua Máquinas</title>
+    <ClientRouter fallback="swap" />
   </head>
   <body>
     <a class="skip-link" href="#contenido">Ir al contenido</a>
@@ -26,17 +31,22 @@ const origin = Astro.url.searchParams.get('origen') === 'alloatti' ? '?origen=al
           <a href={'/' + origin} aria-current={page === 'catalogo' ? 'page' : undefined}>Catálogo</a>
           <a href={'/consulta' + origin}>Pedir un equipo</a>
         </nav>
-        <a class="button button-lime" href="/publicar"><Icon name="plus" size={18} /><span>Publicar máquina</span></a>
+        <a class="button button-primary header-cta" href="/publicar"><Icon name="plus" size={18} /><span>Publicá gratis</span></a>
       </div>
     </header>
-    <main id="contenido"><slot /></main>
-    <footer class="site-footer">
-      <div class="wrap footer-inner">
-        <div><strong>Agua Máquinas</strong><p>Catálogo de demostración · Argentina</p></div>
-        <nav aria-label="Pie de página">
-          <a href={'/' + origin}>Inicio</a><a href={'/consulta' + origin}>Contacto</a><a href="https://www.alloatti.com/?utm_source=aguamaquinas&utm_medium=referido">Alloatti</a><a href="/panel">Panel</a>
-        </nav>
-      </div>
-    </footer>
+    <main id="contenido" transition:animate={page === 'catalogo' ? 'none' : 'fade'}><slot /></main>
+    <SiteFooter origin={origin} />
+    <script>
+      let catalogScroll: number | undefined;
+      document.addEventListener('astro:before-swap', event => {
+        const { from, to, navigationType } = event;
+        catalogScroll = navigationType !== 'traverse' && from.pathname === '/' && to.pathname === '/' && !to.hash
+          ? window.scrollY : undefined;
+      });
+      document.addEventListener('astro:after-swap', () => {
+        if (catalogScroll !== undefined) window.scrollTo({ top: catalogScroll, behavior: 'instant' });
+        catalogScroll = undefined;
+      });
+    </script>
   </body>
 </html>

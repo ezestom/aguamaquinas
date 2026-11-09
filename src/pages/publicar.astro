@@ -21,13 +21,13 @@ const value = (field) => text(form, field, 1600);
 const sent = /^AM-[A-F0-9]{10}$/.test(Astro.url.searchParams.get('enviada') ?? '') ? Astro.url.searchParams.get('enviada') : '';
 ---
 <Layout title="Publicar una máquina" page="publicar">
-  <div class="wrap interior">
+  <div class="wrap interior form-interior">
     <a class="back-link" href="/"><Icon name="back" size={18} /> Volver al catálogo</a>
-    <header class="page-heading"><p class="eyebrow">Vender maquinaria</p><h1>{sent ? 'Aviso recibido' : 'Publicá tu máquina'}</h1>{!sent && <p>Completá los datos básicos, agregá fotos y revisá cómo quedaría tu aviso.</p>}</header>
+    <header class="page-heading"><p class="eyebrow">Vender maquinaria</p><h1>{sent ? 'Aviso recibido' : 'Publicá tu máquina gratis'}</h1>{!sent && <p>Completá los datos del equipo, agregá fotos y revisá el aviso antes de enviarlo.</p>}</header>
     <div class="form-card">
       {sent ? <><p class="message" role="status">Tu aviso <strong>{sent}</strong> quedó pendiente de revisión.</p><a class="button button-primary" href="/">Volver al catálogo</a></> : <>
         {error && <p class="message message-error" role="alert">{error} Volvé a seleccionar las fotos antes de enviar.</p>}
-        <form class="form-stack" id="listing" method="post" enctype="multipart/form-data">
+        <form class="form-stack" id="listing" method="post" enctype="multipart/form-data" data-astro-reload>
           <fieldset><legend>1. Datos del equipo</legend>
             <label>Título del aviso<input name="title" required maxlength="90" placeholder="Ej. Lavadora de bidones de 20 L" value={value('title')} /></label>
             <div class="field-grid">
@@ -43,8 +43,16 @@ const sent = /^AM-[A-F0-9]{10}$/.test(Astro.url.searchParams.get('enviada') ?? '
             <label>Descripción<textarea name="description" required maxlength="1600" placeholder="Contá qué incluye y si se puede ver funcionando.">{value('description')}</textarea></label>
           </fieldset>
           <fieldset><legend>2. Fotos y enlace de video</legend>
-            <label>Fotos del equipo <small id="photo-hint">De 1 a 5 fotos en JPG, PNG o WebP, hasta 3 MB cada una. Mostrá el equipo completo, la placa y el área de trabajo. Evitá teléfonos o direcciones en las fotos.</small><input type="file" name="photos" id="photos" multiple required accept="image/jpeg,image/png,image/webp" aria-describedby="photo-hint" /></label>
-            <div id="photos-preview" class="preview-images" aria-label="Vista previa de las fotos"></div>
+            <div class="photo-field">
+              <p id="photo-hint" class="field-hint">Mostrá el equipo completo, la placa y el área de trabajo. Evitá que se vean teléfonos o direcciones.</p>
+              <label class="photo-picker" id="photo-picker">
+                <input type="file" name="photos" id="photos" class="sr-only" multiple required accept="image/jpeg,image/png,image/webp" aria-describedby="photo-hint photo-formats" />
+                <span class="photo-picker-icon"><Icon name="camera" size={23} /></span>
+                <span><strong>Elegir fotos</strong><small id="photo-formats">De 1 a 5 en JPG, PNG o WebP · Hasta 3 MB por foto</small></span>
+              </label>
+              <p class="field-hint" id="photo-status" role="status"></p>
+              <div id="photos-preview" class="preview-images" aria-label="Vista previa de las fotos"></div>
+            </div>
             <label>Enlace de video <small>Opcional · YouTube o Vimeo</small><input type="url" name="video" maxlength="300" placeholder="https://www.youtube.com/watch?v=…" value={value('video')} /></label>
           </fieldset>
           <fieldset><legend>3. Precio y contacto</legend>
@@ -64,30 +72,55 @@ const sent = /^AM-[A-F0-9]{10}$/.test(Astro.url.searchParams.get('enviada') ?? '
     </div>
   </div>
   <script>
-    const input = document.querySelector<HTMLInputElement>('#photos');
-    const thumbs = document.querySelector('#photos-preview');
-    const form = document.querySelector<HTMLFormElement>('#listing');
-    const button = document.querySelector<HTMLButtonElement>('#show-preview');
-    const preview = document.querySelector<HTMLElement>('#listing-preview');
-    let urls: string[] = [];
-    input?.addEventListener('change', () => {
-      urls.forEach(url => URL.revokeObjectURL(url));
-      urls = [];
-      thumbs?.replaceChildren();
-      const files = Array.from(input.files ?? []);
-      const invalid = files.length > 5 || files.some(file => file.size > 3 * 1024 * 1024 || !['image/jpeg', 'image/png', 'image/webp'].includes(file.type));
-      input.setCustomValidity(invalid ? 'Elegí hasta cinco fotos JPG, PNG o WebP de hasta 3 MB.' : '');
-      if (invalid) { input.reportValidity(); return; }
-      for (const [index, file] of files.entries()) {
-        const img = new Image();
-        const url = URL.createObjectURL(file);
-        urls.push(url);
-        img.src = url;
-        img.alt = `Foto seleccionada ${index + 1}`;
-        thumbs?.append(img);
-      }
-    });
-    if (button && form && preview) {
+    document.addEventListener('astro:page-load', () => {
+      const input = document.querySelector<HTMLInputElement>('#photos');
+      const thumbs = document.querySelector('#photos-preview');
+      const status = document.querySelector('#photo-status');
+      const picker = document.querySelector('#photo-picker');
+      const form = document.querySelector<HTMLFormElement>('#listing');
+      const button = document.querySelector<HTMLButtonElement>('#show-preview');
+      const preview = document.querySelector<HTMLElement>('#listing-preview');
+      if (!input || !thumbs || !status || !picker || !form || !button || !preview) return;
+
+      let urls: string[] = [];
+      const clearPreviews = () => {
+        urls.forEach(url => URL.revokeObjectURL(url));
+        urls = [];
+        thumbs.replaceChildren();
+      };
+      const updatePhotos = () => {
+        clearPreviews();
+        const files = Array.from(input.files ?? []);
+        const invalid = files.length > 5 || files.some(file => file.size > 3 * 1024 * 1024 || !['image/jpeg', 'image/png', 'image/webp'].includes(file.type));
+        const error = 'Elegí hasta cinco fotos JPG, PNG o WebP de hasta 3 MB.';
+        input.setCustomValidity(invalid ? error : '');
+        status.classList.toggle('photo-error', invalid);
+        status.textContent = invalid ? error : files.length ? `${files.length} ${files.length === 1 ? 'foto seleccionada' : 'fotos seleccionadas'}` : '';
+        if (invalid) return;
+        for (const [index, file] of files.entries()) {
+          const img = new Image();
+          const url = URL.createObjectURL(file);
+          urls.push(url);
+          img.src = url;
+          img.alt = `Foto seleccionada ${index + 1}`;
+          thumbs.append(img);
+        }
+      };
+      input.addEventListener('change', updatePhotos);
+      picker.addEventListener('dragover', event => {
+        event.preventDefault();
+        picker.classList.add('is-dragging');
+      });
+      picker.addEventListener('dragleave', () => picker.classList.remove('is-dragging'));
+      picker.addEventListener('drop', event => {
+        event.preventDefault();
+        picker.classList.remove('is-dragging');
+        if (!event.dataTransfer?.files.length) return;
+        input.files = event.dataTransfer.files;
+        updatePhotos();
+      });
+      document.addEventListener('astro:before-swap', clearPreviews, { once: true });
+      updatePhotos();
       button.hidden = false;
       button.addEventListener('click', () => {
         const fields = new FormData(form);
@@ -99,6 +132,6 @@ const sent = /^AM-[A-F0-9]{10}$/.test(Astro.url.searchParams.get('enviada') ?? '
         preview.hidden = false;
         preview.focus();
       });
-    }
+    });
   </script>
 </Layout>

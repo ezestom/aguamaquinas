@@ -11,7 +11,7 @@ npm install
 npm run dev
 ```
 
-Abrí [http://127.0.0.1:4321](http://127.0.0.1:4321). Desde **Publicar máquina** podés cargar un aviso. Al abrir **Panel** por primera vez, el proyecto genera la clave local en `data/clave-panel.txt`. Usá esa clave para revisar y aprobar avisos y leer las consultas. Para una instalación con variables de entorno, podés definir `AGUA_ADMIN_KEY` con una clave larga y aleatoria.
+Abrí [http://127.0.0.1:4321](http://127.0.0.1:4321). Desde **Publicá gratis** podés cargar un aviso. Al abrir **Panel de gestión** por primera vez, el proyecto genera la clave local en `data/clave-panel.txt`. Usá esa clave para revisar y aprobar avisos y leer las consultas. Para una instalación con variables de entorno, podés definir `AGUA_ADMIN_KEY` con una clave larga y aleatoria.
 
 ## Probar los recorridos
 

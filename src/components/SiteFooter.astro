@@ -1,0 +1,44 @@
+---
+import Icon from './Icon.astro';
+const { origin } = Astro.props;
+const tracking = '?utm_source=aguamaquinas&utm_medium=referido';
+const links = [
+  { title: 'Marketplace', items: [
+    ['Inicio', '/' + origin], ['Ver lavadoras', '/?categoria=lavadoras'], ['Ver llenadoras', '/?categoria=llenadoras'], ['Publicá gratis', '/publicar'],
+  ] },
+  { title: 'Ayuda', items: [
+    ['Pedir un equipo o consultar', '/consulta' + origin], ['Panel de gestión', '/panel'],
+  ] },
+  { title: 'Equipos nuevos · Alloatti', items: [
+    ['Líneas de bidones retornables', `https://www.alloatti.com/maquina-para-bidones-retornables${tracking}`],
+    ['Líneas para descartables y PET', `https://www.alloatti.com/maquina-para-bidones-descartables${tracking}`],
+    ['Accesorios y automatización', `https://www.alloatti.com/accesorios-para-maquinas${tracking}`],
+  ] },
+];
+---
+<footer class="site-footer">
+  <div class="wrap">
+    <div class="footer-grid grid grid-cols-1 gap-x-8 gap-y-8 py-10 sm:grid-cols-2 lg:grid-cols-[1.2fr_0.8fr_0.8fr_1fr] lg:py-12">
+      <div class="footer-brand">
+        <a class="inline-flex items-center gap-3" href={'/' + origin}>
+          <span class="brand-icon"><img src="/logo.png" alt="" width="32" height="32" loading="lazy" /></span>
+          <strong>Agua Máquinas</strong>
+        </a>
+        <p>Un lugar para buscar y publicar maquinaria de agua, soda y envasado.</p>
+      </div>
+      {links.map(group => (
+        <nav aria-label={group.title}>
+          <h2>{group.title}</h2>
+          <ul class="grid gap-1.5">{group.items.map(([label, href]) => <li><a href={href}>{label}{href.startsWith('https:') && <Icon name="external" size={13} />}</a></li>)}</ul>
+        </nav>
+      ))}
+    </div>
+    <div class="footer-base flex flex-wrap items-center justify-between gap-x-8 gap-y-3 py-5">
+      <p>© {new Date().getFullYear()} Agua Máquinas · Demo</p>
+      <a class="developer-credit inline-flex items-center gap-2.5" href="https://ezestom.is-a.dev/">
+        <img src="/ezestom.webp" alt="" width="23" height="25" loading="lazy" /><span>Desarrollado por <strong>Ezequiel Stom</strong></span>
+        <Icon name="external" size={14} />
+      </a>
+    </div>
+  </div>
+</footer>

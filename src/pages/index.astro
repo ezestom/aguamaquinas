@@ -20,7 +20,7 @@ const extra = Object.keys(categories).filter(key => !popular.includes(key));
 const categoryUrl = (key) => {
   const next = new URLSearchParams(filters);
   if (key) next.set('categoria', key); else next.delete('categoria');
-  return `/${next.size ? `?${next}` : ''}#catalogo`;
+  return `/${next.size ? `?${next}` : ''}`;
 };
 const reset = new URLSearchParams();
 if (origin) reset.set('origen', origin);
@@ -31,16 +31,16 @@ const filterCount = ['provincia', 'formato', 'estado'].filter(key => filters.has
   <section class="intro">
     <div class="wrap intro-inner">
       <div class="intro-copy">
-        <p class="eyebrow"><span></span> Catálogo industrial · Argentina</p>
-        <h1>Maquinaria para<br class="mobile-break" /> agua y soda<span>.</span></h1>
-        <p>Encontrá equipos usados para lavar, llenar, tapar y envasar.</p>
+        <p class="eyebrow">Catálogo industrial · Argentina</p>
+        <h1>Maquinaria para <span>agua y soda</span></h1>
+        <p>Encontrá equipos para lavar, llenar, tapar y envasar.</p>
       </div>
       <aside class="demo-notice"><Icon name="info" size={19} /><div><strong>Catálogo de demostración</strong><small>Las publicaciones son ejemplos.</small></div></aside>
     </div>
   </section>
   <div class="catalog-nav">
     <div class="wrap">
-      <form class="search-form" action="/#catalogo" role="search">
+      <form class="search-form" action="/" role="search">
         <div class="search-input"><Icon name="search" /><label class="visually-hidden" for="search">Buscar por equipo, marca o referencia</label><input id="search" name="q" type="search" maxlength="120" placeholder="Equipo, marca o referencia" value={filters.get('q') ?? ''} /></div>
         {origin && <input type="hidden" name="origen" value={origin} />}
         <button class="button button-primary" type="submit">Buscar</button>
@@ -60,8 +60,8 @@ const filterCount = ['provincia', 'formato', 'estado'].filter(key => filters.has
       <aside class="filter-side">
         <details class="filter-box">
           <summary><Icon name="filters" size={19} /> Filtrar equipos {filterCount > 0 && <span class="filter-count">{filterCount}</span>}</summary>
-          <form action="/#catalogo">
-            <div class="filter-heading"><strong><Icon name="filters" size={19} /> Filtros</strong><a href={`/${reset.size ? `?${reset}` : ''}#catalogo`}>Limpiar</a></div>
+          <form action="/">
+            <div class="filter-heading"><strong><Icon name="filters" size={19} /> Filtros</strong><a href={`/${reset.size ? `?${reset}` : ''}`}>Limpiar</a></div>
             {['categoria', 'q', 'origen'].map(key => filters.has(key) && <input type="hidden" name={key} value={filters.get(key)} />)}
             <label>Provincia<select name="provincia"><option value="">Todas</option>{provinces.map(province => <option value={province} selected={filters.get('provincia') === province}>{province}</option>)}</select></label>
             <label>Formato<select name="formato"><option value="">Todos</option>{Object.entries(formats).map(([key, label]) => <option value={key} selected={filters.get('formato') === key}>{label}</option>)}</select></label>
@@ -76,10 +76,12 @@ const filterCount = ['provincia', 'formato', 'estado'].filter(key => filters.has
   </section>
   <script>
     const desktop = window.matchMedia('(min-width: 900px)');
-    const filters = document.querySelector<HTMLDetailsElement>('.filter-box');
-    if (filters) {
-      filters.open = desktop.matches;
-      desktop.addEventListener('change', event => { filters.open = event.matches; });
-    }
+    const syncFilters = () => {
+      const filters = document.querySelector<HTMLDetailsElement>('.filter-box');
+      if (filters) filters.open = desktop.matches;
+    };
+    desktop.addEventListener('change', syncFilters);
+    document.addEventListener('astro:after-swap', syncFilters);
+    document.addEventListener('astro:page-load', syncFilters, { once: true });
   </script>
 </Layout>
