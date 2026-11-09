@@ -15,9 +15,9 @@ for (const key of ['q', 'provincia', 'formato', 'estado', 'origen']) {
 if (category) filters.set('categoria', category);
 const machines = db().prepare("SELECT * FROM machines WHERE status = 'published' ORDER BY sample, CASE WHEN sample = 0 THEN -id ELSE id END")
   .all().filter(machine => matches(machine, filters));
-const popular = ['', 'lavadoras', 'llenadoras', 'lineas', 'soda', 'tanques', 'tratamiento'];
-const primary = popular.slice(0, 3);
-const extra = Object.keys(categories).filter(key => !primary.includes(key));
+const categoryOrder = ['', 'lavadoras', 'llenadoras', 'lineas', 'soda', 'tanques', 'tratamiento'];
+categoryOrder.push(...Object.keys(categories).filter(key => !categoryOrder.includes(key)));
+const fallbackCount = 3;
 const categoryUrl = (key) => {
   const next = new URLSearchParams(filters);
   if (key) next.set('categoria', key); else next.delete('categoria');
@@ -48,17 +48,17 @@ const filterCount = ['provincia', 'formato', 'estado'].filter(key => filters.has
       </form>
     </div>
   </div>
-  <div class="category-band">
+  <category-tabs class="category-band">
     <nav class="wrap tabs" aria-label="Categorías de equipos">
-      {popular.map(key => <a class:list={['category-tab', !primary.includes(key) && 'tab-desktop']} href={categoryUrl(key)} aria-current={key === category ? 'page' : undefined}>
+      {categoryOrder.map((key, index) => <a class="category-tab" hidden={index >= fallbackCount} href={categoryUrl(key)} aria-current={key === category ? 'page' : undefined}>
         {key ? categories[key] : <><span class="tab-long">Todos los equipos</span><span class="tab-short">Todos</span></>}
       </a>)}
       <details class="more-tabs">
-        <summary class:list={['category-tab', !popular.includes(category) && 'selected', extra.includes(category) && 'selected-compact']} aria-label="Más categorías"><span class="tab-long">Más categorías</span><span class="tab-short">Más</span></summary>
-        <div>{extra.map(key => <a class:list={[popular.includes(key) && 'menu-compact']} href={categoryUrl(key)} aria-current={key === category ? 'page' : undefined}>{categories[key]}</a>)}</div>
+        <summary class:list={['category-tab', categoryOrder.indexOf(category) >= fallbackCount && 'selected']} aria-label="Más categorías"><span class="tab-long">Más categorías</span><span class="tab-short">Más</span></summary>
+        <div>{categoryOrder.map((key, index) => <a hidden={index < fallbackCount} href={categoryUrl(key)} aria-current={key === category ? 'page' : undefined}>{key ? categories[key] : 'Todos los equipos'}</a>)}</div>
       </details>
     </nav>
-  </div>
+  </category-tabs>
   <section class="wrap catalog" id="catalogo" aria-labelledby="catalog-title">
     <div class="catalog-heading">
       <div><h2 id="catalog-title">{category ? categories[category] : 'Equipos disponibles'}</h2><p>{machines.length} {machines.length === 1 ? 'equipo' : 'equipos'}{filters.get('q') && ` para «${filters.get('q')}»`}</p></div>
@@ -83,6 +83,7 @@ const filterCount = ['provincia', 'formato', 'estado'].filter(key => filters.has
     </div>
   </section>
   <script>
+    import '../components/category-tabs';
     const desktop = window.matchMedia('(min-width: 900px)');
     const syncFilters = () => {
       const filters = document.querySelector<HTMLDetailsElement>('.filter-box');
