@@ -22,3 +22,4 @@ Abrí [http://127.0.0.1:4321](http://127.0.0.1:4321). Desde **Publicá gratis** 
 ## Compilar y guardar los datos
 
 `npm test` corre los tests. `npm run build` compila y `npm start` ejecuta la versión compilada. Para Render, configurá Node 24 o posterior, `HOST=0.0.0.0`, una clave de panel y `AGUA_DATA_DIR` dentro del punto de montaje de un disco persistente. La base y las fotos comparten esa carpeta. Para la demo compartida, restringí el acceso al entorno y usá exclusivamente datos de prueba.
+# aguamaquinas
