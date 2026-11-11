@@ -7,9 +7,15 @@ const paths = {
   plus: 'M12 5v14M5 12h14', arrow: 'M5 12h14m-6-6 6 6-6 6', back: 'M19 12H5m6-6-6 6 6 6',
   pin: 'M20 10c0 5-8 10-8 10S4 15 4 10a8 8 0 1 1 16 0Z M12 10a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z',
   filters: 'M4 7h16M4 17h16M9 4v6m6 4v6', info: 'M12 11v5m0-8h.01M22 12a10 10 0 1 1-20 0 10 10 0 0 1 20 0Z',
-  external: 'M13 5h6v6m0-6-8 8m7 1v5H5V6h5', play: 'm9 5 11 7-11 7V5Z',
+  external: 'M13 5h6v6m0-6-8 8m7 1v5H5V6h5', play: 'm9 5 11 7-11 7V5Z', pause: 'M9 5v14m6-14v14',
   camera: 'M4 7h4l2-3h4l2 3h4v13H4V7Z M16 13a4 4 0 1 1-8 0 4 4 0 0 1 8 0Z',
   check: 'm5 12 4 4L19 6', list: 'M9 6h11M9 12h11M9 18h11M4 6h.01M4 12h.01M4 18h.01',
+  previous: 'm15 5-7 7 7 7', next: 'm9 5 7 7-7 7',
+  expand: 'M9 4H4v5m11-5h5v5M4 15v5h5m11-5v5h-5',
+  edit: 'm14 6 4 4M4 20l4-.8L20 7l-3-3L5 16l-1 4Z',
+  trash: 'M4 7h16m-10 4v6m4-6v6M6 7l1 13h10l1-13M9 7V4h6v3',
+  close: 'm6 6 12 12M18 6 6 18', download: 'M12 3v12m-4-4 4 4 4-4M5 16v4h14v-4',
+  restore: 'M4 11a8 8 0 1 1 2 6m-2-6V5m0 6h6',
 };
 ---
 <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d={paths[name]} /></svg>

@@ -1,0 +1,135 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import Icon from '../../components/Icon.astro';
+import { adminSessionCookie, db, hasAdminSession } from '../../lib/db.mjs';
+import { campaignLimit, deleteCampaign, featuredLimit, featuredSlots, homeCampaigns, saveCampaign, saveFeatured } from '../../lib/home.mjs';
+import { FormError } from '../../lib/submissions.mjs';
+import '../../styles/admin.css';
+
+Astro.response.headers.set('Cache-Control', 'private, no-store');
+Astro.response.headers.set('Referrer-Policy', 'no-referrer');
+if (!hasAdminSession(Astro.cookies.get(adminSessionCookie)?.value)) return Astro.redirect('/panel', 303);
+
+const base = '/panel/portada';
+const view = Astro.url.searchParams.get('editar');
+const campaigns = homeCampaigns();
+const deleting = view?.startsWith('eliminar-');
+const current = campaigns.find(campaign => String(campaign.id) === (deleting ? view?.slice('eliminar-'.length) : view));
+const isDelete = deleting && Boolean(current);
+const isCampaign = view === 'nueva' || (Boolean(current) && !deleting);
+const isFeatured = view === 'destacados';
+const published = db().prepare("SELECT ref, title FROM machines WHERE status = 'published' AND sample = 0 ORDER BY title, ref").all();
+const assignments = featuredSlots();
+const slots = Array.from({ length: featuredLimit }, (_, index) => {
+  const position = index + 1;
+  return { position, ...assignments.find(item => item.position === position) };
+});
+let form: FormData | undefined;
+let error = '';
+if (Astro.request.method === 'POST') {
+  try {
+    form = await Astro.request.formData();
+    if (!hasAdminSession(Astro.cookies.get(adminSessionCookie)?.value)) return Astro.redirect('/panel', 303);
+    if (isFeatured) saveFeatured(form);
+    else if (isDelete) deleteCampaign(current.id);
+    else if (isCampaign) await saveCampaign(form, current?.id);
+    else throw new FormError('Elegí qué querés editar.');
+    return Astro.redirect(base + '?guardado=1', 303);
+  } catch (failure) {
+    error = failure instanceof FormError ? failure.message : 'No pudimos guardar los cambios. Probá de nuevo.';
+    Astro.response.status = failure instanceof FormError ? failure.status : 500;
+  }
+}
+const saved = Astro.url.searchParams.has('guardado');
+const field = (key: string, fallback = '') => String(form?.get(key) ?? current?.[key] ?? fallback);
+const active = form ? form.get('active') === '1' : current ? Boolean(current.active) : true;
+const sponsored = form ? form.get('sponsored') === '1' : Boolean(current?.sponsored);
+---
+<Layout title="Gestionar portada" page="panel">
+  <div class="wrap interior admin-workspace">
+    <a class="back-link" href="/panel"><Icon name="back" size={17} /> Volver al panel</a>
+    <header class="admin-header">
+      <div><h1>Gestionar portada</h1><p>Elegí los equipos destacados y las campañas que aparecen arriba del buscador.</p></div>
+      <a class="button button-outline" href="/">Ver portada <Icon name="arrow" size={17} /></a>
+    </header>
+    {saved && <p class="message admin-feedback" role="status"><Icon name="check" size={17} /> Portada actualizada.</p>}
+    {error && !isCampaign && !isFeatured && !isDelete && <p class="message message-error admin-feedback" role="alert">{error}</p>}
+
+    <section class="admin-sheet home-settings" aria-labelledby="campaigns-title">
+      <div class="home-settings-head"><div><h2 id="campaigns-title">Campañas</h2><p>Los banners activos se muestran en orden. Las campañas patrocinadas llevan la etiqueta «Publicidad».</p></div>
+        {campaigns.length < campaignLimit && <a class="button button-primary" href={base + '?editar=nueva'}><Icon name="plus" size={17} /> Nueva campaña</a>}
+      </div>
+      {campaigns.length ? <ul class="home-settings-list">
+        {campaigns.map(campaign => <li>
+          <div><strong>{campaign.title}</strong><small>Orden {campaign.position} · {campaign.active ? 'Activa' : 'Oculta'}{campaign.sponsored ? ' · Publicidad' : ''}</small></div>
+          <div class="admin-row-actions">
+            <a class="admin-icon-action" href={base + '?editar=' + campaign.id} aria-label={'Editar ' + campaign.title}><Icon name="edit" size={17} /> Editar</a>
+            <a class="admin-icon-action admin-danger-link" href={base + '?editar=eliminar-' + campaign.id} aria-label={'Eliminar ' + campaign.title}><Icon name="trash" size={17} /></a>
+          </div>
+        </li>)}
+      </ul> : <p class="home-settings-note">La portada muestra los banners de publicar y pedir un equipo hasta que actives una campaña.</p>}
+    </section>
+
+    <section class="admin-sheet home-settings" aria-labelledby="featured-title">
+      <div class="home-settings-head"><div><h2 id="featured-title">Equipos destacados</h2><p>Los lugares libres muestran equipos de referencia. Marcá como patrocinado el aviso que tenga un acuerdo comercial.</p></div>
+        <a class="button button-outline" href={base + '?editar=destacados'}><Icon name="edit" size={17} /> Editar destacados</a>
+      </div>
+      <ol class="home-settings-list">
+        {slots.map(slot => <li><div><strong>Lugar {slot.position}</strong><small>{slot.title || 'Sin equipo asignado'}{slot.sponsored ? ' · Patrocinado' : ''}</small></div></li>)}
+      </ol>
+    </section>
+
+    {(isCampaign || isFeatured || isDelete) && <dialog open class:list={['admin-dialog', !isDelete && 'admin-dialog-wide']} data-panel-dialog aria-labelledby="home-settings-dialog">
+      <div class="admin-dialog-head">
+        <span class:list={['admin-dialog-icon', isDelete && 'admin-danger-icon']}><Icon name={isDelete ? 'trash' : current || isFeatured ? 'edit' : 'plus'} size={22} /></span>
+        <div><h2 id="home-settings-dialog">{isDelete ? 'Eliminar campaña' : isFeatured ? 'Editar destacados' : current ? 'Editar campaña' : 'Nueva campaña'}</h2>{isDelete && <p>{current.title}</p>}</div>
+        <a class="admin-icon-action admin-dialog-close" href={base} aria-label="Cerrar ventana" data-dialog-close><Icon name="close" size={20} /></a>
+      </div>
+      <form method="post" enctype={isCampaign ? 'multipart/form-data' : 'application/x-www-form-urlencoded'} data-astro-reload class="form-stack admin-dialog-form">
+        <div class="admin-dialog-body">
+          {error && <p class="message message-error" role="alert">{error}</p>}
+          {isDelete ? <p>La campaña y su imagen se eliminarán de forma permanente. Si querés conservarlas, podés ocultar la campaña desde Editar.</p> : isFeatured ? slots.map(slot => {
+            const selected = String(form?.get('ref-' + slot.position) ?? slot.machine_ref ?? '');
+            return <fieldset>
+              <legend>Lugar {slot.position}</legend>
+              <label>Equipo <select name={'ref-' + slot.position}><option value="">Sin equipo</option>
+                {slot.machine_ref && !published.some(item => item.ref === slot.machine_ref) && <option value={slot.machine_ref} selected={slot.machine_ref === selected}>{slot.title} (fuera del catálogo)</option>}
+                {published.map(item => <option value={item.ref} selected={item.ref === selected}>{item.title} · {item.ref}</option>)}
+              </select></label>
+              <label class="home-check"><input type="checkbox" name={'sponsor-' + slot.position} value="1" checked={form ? form.get('sponsor-' + slot.position) === '1' : Boolean(slot.sponsored)} /> Patrocinado</label>
+            </fieldset>;
+          }) : <div class="admin-fields">
+            <label class="admin-field-wide">Título<input name="title" required maxlength="80" value={field('title')} /></label>
+            <label class="admin-field-wide">Descripción<textarea name="description" required maxlength="180">{field('description')}</textarea></label>
+            <label>Texto de la acción<input name="label" required maxlength="34" value={field('label')} /></label>
+            <label>Orden<input name="position" type="number" min="1" max="99" required value={field('position', '1')} /></label>
+            <label class="admin-field-wide">Enlace<input name="href" required maxlength="500" placeholder="/consulta o https://…" value={field('href')} /></label>
+            <label class="admin-field-wide">Imagen opcional <small>Recomendado 1920 × 500 px. JPG, PNG o WebP de hasta 4 MB. La imagen completa funciona como enlace.</small><input name="image" type="file" accept="image/jpeg,image/png,image/webp" /></label>
+            {current?.has_image && <div class="admin-field-wide home-current-image"><img src={`/campanas/${current.id}.webp`} alt="Imagen actual" /><label class="home-check"><input type="checkbox" name="remove-image" value="1" /> Quitar imagen</label></div>}
+            <label class="admin-field-wide home-check"><input type="checkbox" name="active" value="1" checked={active} /> Mostrar campaña en la portada</label>
+            <label class="admin-field-wide home-check"><input type="checkbox" name="sponsored" value="1" checked={sponsored} /> Marcar como publicidad</label>
+          </div>}
+        </div>
+        <div class="admin-dialog-foot"><a class="button button-outline" href={base} autofocus>Cancelar</a><button class:list={['button', isDelete ? 'admin-danger-button' : 'button-primary']} type="submit">{isDelete ? 'Eliminar campaña' : 'Guardar cambios'}</button></div>
+      </form>
+    </dialog>}
+  </div>
+</Layout>
+
+<script>
+  import '../../components/admin-dialog';
+</script>
+
+<style>
+  .home-settings { margin-bottom: 16px; }
+  .home-settings-head { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; padding: 16px 18px; }
+  .home-settings h2 { font-size: 1.125rem; font-weight: 730; }
+  .home-settings p, .home-settings-list small { color: var(--muted); }
+  .home-settings-note { border-top: 1px solid var(--line); padding: 14px 18px; }
+  .home-settings-list li { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 18px; border-top: 1px solid var(--line); }
+  .home-settings-list small { display: block; }
+  .form-stack label.home-check { display: flex; align-items: center; gap: 8px; }
+  .form-stack .home-check input { width: 18px; min-height: 18px; accent-color: var(--primary); }
+  .home-current-image { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+  .home-current-image img { width: 110px; max-height: 68px; object-fit: cover; border-radius: 6px; }
+</style>

@@ -1,11 +1,23 @@
 class CategoryTabs extends HTMLElement {
   private observer?: ResizeObserver;
+  private listeners?: AbortController;
 
   connectedCallback() {
     const row = this.querySelector<HTMLElement>('.tabs');
     const dropdown = this.querySelector<HTMLDetailsElement>('.more-tabs');
     const toggle = dropdown?.querySelector('summary');
     if (!row || !dropdown || !toggle) return;
+    this.listeners = new AbortController();
+    const { signal } = this.listeners;
+    document.addEventListener('click', event => {
+      if (dropdown.open && !event.composedPath().includes(dropdown)) dropdown.open = false;
+    }, { signal });
+    dropdown.addEventListener('keydown', event => {
+      if (event.key !== 'Escape' || !dropdown.open) return;
+      event.preventDefault();
+      dropdown.open = false;
+      toggle.focus();
+    }, { signal });
 
     const tabs = Array.from(row.querySelectorAll<HTMLAnchorElement>(':scope > a'));
     const menuLinks = Array.from(dropdown.querySelectorAll('a'));
@@ -50,6 +62,7 @@ class CategoryTabs extends HTMLElement {
   }
 
   disconnectedCallback() {
+    this.listeners?.abort();
     this.observer?.disconnect();
   }
 }

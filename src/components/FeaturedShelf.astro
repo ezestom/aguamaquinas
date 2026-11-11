@@ -1,0 +1,165 @@
+---
+import Icon from "./Icon.astro";
+import MachineCard from "./MachineCard.astro";
+
+const { machines, params } = Astro.props;
+---
+
+<section class="featured-shelf" aria-labelledby="featured-title">
+	<featured-shelf class="wrap">
+		<div class="featured-heading">
+			<h2 id="featured-title">Equipos destacados</h2>
+			<div class="featured-controls" data-controls hidden>
+				<button
+					type="button"
+					data-step="-1"
+					aria-label="Ver destacados anteriores"
+					aria-controls="featured-track"
+					><Icon name="previous" size={19} /></button
+				>
+				<button
+					type="button"
+					data-step="1"
+					aria-label="Ver más destacados"
+					aria-controls="featured-track"
+					><Icon name="next" size={19} /></button
+				>
+			</div>
+		</div>
+		<div class="featured-track" id="featured-track">
+			{
+				machines.map((machine) => (
+					<MachineCard
+						machine={machine}
+						params={params}
+						compact
+						promotion={
+							machine.reference
+								? undefined
+								: machine.sponsored
+									? "Patrocinado"
+									: "Destacado"
+						}
+					/>
+				))
+			}
+		</div>
+	</featured-shelf>
+</section>
+
+<script>
+	class FeaturedShelf extends HTMLElement {
+		private observer?: ResizeObserver;
+		private listeners?: AbortController;
+
+		connectedCallback() {
+			const track = this.querySelector<HTMLElement>(".featured-track");
+			const controls = this.querySelector<HTMLElement>("[data-controls]");
+			const previous =
+				controls?.querySelector<HTMLButtonElement>('[data-step="-1"]');
+			const next =
+				controls?.querySelector<HTMLButtonElement>('[data-step="1"]');
+			if (!track || !controls || !previous || !next) return;
+
+			this.listeners = new AbortController();
+			const { signal } = this.listeners;
+			const sync = () => {
+				const end = track.scrollWidth - track.clientWidth;
+				controls.hidden = end <= 1;
+				previous.setAttribute(
+					"aria-disabled",
+					String(track.scrollLeft <= 1),
+				);
+				next.setAttribute(
+					"aria-disabled",
+					String(track.scrollLeft >= end - 1),
+				);
+			};
+			const step = (direction: number) => {
+				const first = track.children[0]?.getBoundingClientRect();
+				const second = track.children[1]?.getBoundingClientRect();
+				if (!first || !second) return;
+				const behavior = matchMedia("(prefers-reduced-motion: reduce)")
+					.matches
+					? "instant"
+					: "smooth";
+				track.scrollBy({
+					left: (second.left - first.left) * direction,
+					behavior,
+				});
+			};
+
+			previous.addEventListener("click", () => step(-1), { signal });
+			next.addEventListener("click", () => step(1), { signal });
+			track.addEventListener("scroll", sync, { passive: true, signal });
+			this.observer = new ResizeObserver(sync);
+			this.observer.observe(track);
+			sync();
+		}
+
+		disconnectedCallback() {
+			this.observer?.disconnect();
+			this.listeners?.abort();
+		}
+	}
+
+	customElements.define("featured-shelf", FeaturedShelf);
+</script>
+
+<style>
+	.featured-shelf {
+		background: var(--surface);
+		padding-block: 12px 16px;
+	}
+	featured-shelf {
+		display: block;
+	}
+	.featured-heading {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		min-height: 44px;
+		margin-bottom: 5px;
+	}
+	.featured-heading h2 {
+		font-size: 1.125rem;
+		font-weight: 650;
+		letter-spacing: -0.015em;
+	}
+	.featured-controls {
+		display: flex;
+		gap: 4px;
+	}
+	.featured-controls button {
+		display: grid;
+		place-items: center;
+		width: 44px;
+		height: 44px;
+		border: 1px solid var(--line);
+		border-radius: 50%;
+		background: var(--surface);
+		color: var(--deep);
+	}
+	.featured-controls button[aria-disabled="true"] {
+		color: var(--muted);
+		opacity: 0.55;
+		cursor: default;
+	}
+	.featured-controls button:not([aria-disabled="true"]):hover {
+		background: var(--tint);
+	}
+	.featured-track {
+		--gap: 12px;
+		display: grid;
+		grid-auto-flow: column;
+		grid-auto-columns: max(
+			clamp(165px, 24vw, 202px),
+			calc((100% - 4 * var(--gap)) / 5)
+		);
+		gap: var(--gap);
+		overflow-x: auto;
+		overscroll-behavior-x: contain;
+		scrollbar-width: none;
+		scroll-snap-type: x mandatory;
+	}
+</style>

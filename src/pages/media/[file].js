@@ -1,13 +1,13 @@
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
-import { adminSession, dataDir, db, safeEqual } from '../../lib/db.mjs';
+import { adminSessionCookie, dataDir, db, hasAdminSession } from '../../lib/db.mjs';
 
 export async function GET({ params, cookies }) {
   const file = params.file ?? '';
   if (!/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}\.webp$/.test(file)) return new Response(null, { status: 404 });
-  const record = db().prepare('SELECT status FROM machines, json_each(machines.photos) WHERE json_each.value = ?').get(`/media/${file}`);
+  const record = db().prepare('SELECT status FROM machines, json_each(machines.photos) WHERE machines.sample = 0 AND json_each.value = ?').get(`/media/${file}`);
   const publicPhoto = record?.status === 'published';
-  if (!record || (!publicPhoto && !safeEqual(cookies.get('aguamaquinas_panel')?.value, adminSession()))) {
+  if (!record || (!publicPhoto && !hasAdminSession(cookies.get(adminSessionCookie)?.value))) {
     return new Response(null, { status: 404, headers: { 'Cache-Control': 'no-store' } });
   }
   try {

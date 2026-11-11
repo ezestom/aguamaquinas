@@ -1,0 +1,94 @@
+---
+import Icon from './Icon.astro';
+import { categories, conditions, formats, provinces, priceLabel } from '../lib/catalog.mjs';
+import { getPhotos } from '../lib/db.mjs';
+import { listingStatuses, recordRevision } from '../lib/listing-management.mjs';
+
+const { record, kind, operation, closeUrl, actionUrl, error, submitted, link } = Astro.props;
+const listing = kind === 'aviso';
+const name = listing ? record.title : record.name;
+const titles = { view: listing ? 'Detalle del aviso' : 'Detalle de la consulta', edit: listing ? 'Editar aviso' : 'Editar consulta',
+  seller: 'Editar vendedor', delete: listing ? 'Eliminar aviso' : 'Eliminar consulta', restore: 'Restaurar registro',
+  published: 'Publicar aviso', paused: 'Pausar aviso', sold: 'Marcar como vendido' };
+const notes = {
+  delete: listing ? 'El aviso saldrá del catálogo y pasará a la papelera. Podés restaurarlo con sus fotos y contactos.'
+    : 'La consulta pasará a la papelera. Podés recuperarla cuando lo necesites.',
+  restore: listing ? 'El aviso volverá a su estado anterior. Si estaba publicado, volverá a aparecer en el catálogo.' : 'La consulta volverá a la bandeja.',
+  published: 'El equipo aparecerá en el catálogo público. Los datos de contacto siguen en el panel.',
+  paused: 'El equipo dejará de aparecer en el catálogo hasta que lo vuelvas a publicar.',
+  sold: 'El equipo se marcará como vendido y dejará de aparecer en el catálogo.',
+};
+const value = (field: string) => submitted?.get(field) ?? record[field] ?? '';
+const equipment = [ ['title','Título',90], ['brand','Marca',60], ['model','Modelo',60], ['format_detail','Medida',70], ['capacity','Capacidad',60] ];
+const selects = [ ['category','Categoría',Object.entries(categories)], ['province','Provincia',provinces.map(province => [province, province])],
+  ['condition','Estado del equipo',Object.entries(conditions)], ['format','Formato',Object.entries(formats)] ];
+const edit = operation === 'edit' || operation === 'seller';
+---
+<dialog open class:list={['admin-dialog', { 'admin-dialog-wide': edit || operation === 'view' }]} aria-labelledby="panel-dialog-title" data-panel-dialog>
+  <div class="admin-dialog-head">
+    <span class:list={['admin-dialog-icon', { 'admin-danger-icon': operation === 'delete' }]}><Icon name={operation === 'delete' ? 'trash' : edit ? 'edit' : operation === 'restore' ? 'restore' : 'list'} size={22} /></span>
+    <div><h2 id="panel-dialog-title">{titles[operation]}</h2><p>{name}{listing && <> · {record.ref}</>}</p></div>
+    <a class="admin-icon-action admin-dialog-close" href={closeUrl} aria-label="Cerrar ventana" data-dialog-close><Icon name="close" size={20} /></a>
+  </div>
+  {operation === 'view' ? <>
+    <div class="admin-dialog-body admin-detail">
+      {listing ? <>
+        <dl>
+          <div><dt>Publicación</dt><dd>{listingStatuses[record.status]}</dd></div><div><dt>Precio</dt><dd>{priceLabel(record)}</dd></div>
+          <div><dt>Equipo</dt><dd>{[categories[record.category], record.brand, record.model].filter(Boolean).join(' · ')}</dd></div>
+          <div><dt>Formato y estado</dt><dd>{[formats[record.format], record.format_detail, record.capacity, conditions[record.condition]].filter(Boolean).join(' · ')}</dd></div>
+          <div><dt>Vendedor</dt><dd>{record.seller || 'Sin nombre'} · <a href={link('seller', kind, record.ref)}>Editar contacto</a></dd></div>
+          <div><dt>{record.verified_at ? 'Email verificado' : 'Email sin verificar'}</dt><dd>{record.email || 'Sin email'}</dd></div>
+          <div><dt>Contacto</dt><dd>{record.phone ? <><a href={`tel:${record.phone}`}>{record.phone}</a> · <a href={`https://wa.me/${record.phone.slice(1)}`} target="_blank" rel="noopener noreferrer">WhatsApp</a></> : record.contact || 'Sin teléfono'}</dd></div>
+          <div><dt>Ubicación</dt><dd>{[record.address, record.locality, record.province].filter(Boolean).join(', ')}</dd></div>
+        </dl>
+        <p class="admin-prewrap">{record.description}</p>
+        <div class="thumbs">{getPhotos(record).map((photo, index) => <a href={photo} target="_blank" rel="noopener noreferrer"><img src={photo} loading="lazy" alt={`Ver foto ${index + 1}`} /></a>)}</div>
+        {record.video && <a href={record.video} target="_blank" rel="noopener noreferrer">Ver video</a>}
+      </> : <>
+        <dl><div><dt>Contacto</dt><dd>{record.contact}</dd></div><div><dt>Origen</dt><dd>{record.origin}</dd></div></dl>
+        <p>{record.machine_title ?? (record.machine_ref || 'Pedido general')}</p>
+        <p class="admin-prewrap">{record.message}</p>
+        {record.sample === 0 && !record.listing_deleted_at && <a href={link('view', 'aviso', record.machine_ref)}>Ver contacto del vendedor</a>}
+      </>}
+    </div>
+    <div class="admin-dialog-foot">
+      {listing && record.status !== 'published' && record.verified_at && <a class="button button-primary" href={link('published', kind, record.ref)}>Publicar aviso</a>}
+      {listing && record.status === 'published' && <a class="button button-outline" href={link('paused', kind, record.ref)}>Pausar aviso</a>}
+      {listing && record.status !== 'sold' && <a class="button button-outline" href={link('sold', kind, record.ref)}>Marcar como vendido</a>}
+      <a class="button button-outline" href={closeUrl} autofocus>Cerrar</a>
+    </div>
+  </> : <form method="post" action={actionUrl} data-astro-reload class="form-stack admin-dialog-form">
+    <input type="hidden" name="action" value="apply" />
+    <input type="hidden" name="revision" value={recordRevision(record)} />
+    <div class="admin-dialog-body">
+      {error && <p class="message message-error" role="alert">{error}</p>}
+      {operation === 'edit' && listing && <div class="admin-fields">
+        {equipment.map(([field, label, limit]) => <label>{label}<input name={field} value={value(field)} maxlength={limit} required={field === 'title'} /></label>)}
+        {selects.map(([field, label, options]) => <label>{label}<select name={field} required>{options.map(([key, title]) => <option value={key} selected={value(field) === key}>{title}</option>)}</select></label>)}
+        <label>Precio ({record.currency})<input name="price" type="number" min="1" max="99999999999" step="1" value={value('price')} /></label>
+        <label class="admin-field-wide">Video de YouTube o Vimeo<input name="video" type="url" maxlength="300" value={value('video')} /></label>
+        <label class="admin-field-wide">Descripción<textarea name="description" required maxlength="1600">{value('description')}</textarea></label>
+      </div>}
+      {operation === 'seller' && <div class="admin-fields">
+        <label>Nombre y apellido<input name="seller" required maxlength="80" value={value('seller')} /></label>
+        <label>{record.verified_at ? 'Email verificado' : 'Email sin verificar'}<input name="email" type="email" maxlength="254" value={record.verified_at ? record.email : value('email')} readonly={Boolean(record.verified_at)} /></label>
+        <label>WhatsApp o teléfono<input name="phone" type="tel" maxlength="30" placeholder="+54 9 …" value={value('phone')} /></label>
+        <label>Localidad<input name="locality" maxlength="80" value={value('locality')} /></label>
+        <label class="admin-field-wide">Dirección<input name="address" maxlength="160" value={value('address')} /></label>
+        {record.contact && <label class="admin-field-wide">Contacto anterior<input name="contact" maxlength="100" value={value('contact')} /></label>}
+      </div>}
+      {operation === 'edit' && !listing && <div class="admin-fields">
+        <label>Nombre<input name="name" maxlength="80" required value={value('name')} /></label>
+        <label>Contacto<input name="contact" maxlength="100" required value={value('contact')} /></label>
+        <label class="admin-field-wide">Mensaje<textarea name="message" maxlength="1200" required>{value('message')}</textarea></label>
+      </div>}
+      {!edit && <p>{notes[operation]}</p>}
+    </div>
+    <div class="admin-dialog-foot">
+      <a class="button button-outline" href={closeUrl} autofocus>Cancelar</a>
+      <button class:list={['button', operation === 'delete' ? 'admin-danger-button' : 'button-primary']} type="submit">{edit ? 'Guardar cambios' : operation === 'delete' ? 'Mover a la papelera' : titles[operation]}</button>
+    </div>
+  </form>}
+</dialog>
+

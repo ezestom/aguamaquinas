@@ -1,21 +1,66 @@
 ---
 import Layout from '../layouts/Layout.astro';
 import Icon from '../components/Icon.astro';
-import { adminKey, adminSession, db, getPhotos, safeEqual } from '../lib/db.mjs';
-import { categories, conditions, formats, priceLabel } from '../lib/catalog.mjs';
-import { text } from '../lib/submissions.mjs';
+import PanelDialog from '../components/PanelDialog.astro';
+import { adminKey, adminSessionCookie, adminSessionSeconds, createAdminSession, db, hasAdminSession, revokeAdminSession, safeEqual } from '../lib/db.mjs';
+import { categories, priceLabel } from '../lib/catalog.mjs';
+import { FormError, text } from '../lib/submissions.mjs';
+import { applyPanelChange, listingStatuses, managedInquiries, managedListings, managedRecord } from '../lib/listing-management.mjs';
+import { retryNotifications } from '../lib/mail.mjs';
+import '../styles/admin.css';
 
-Astro.response.headers.set('Cache-Control', 'no-store');
-const cookie = 'aguamaquinas_panel';
-const authorized = safeEqual(Astro.cookies.get(cookie)?.value, adminSession());
-const statuses = { pending: 'Pendiente', published: 'Publicado', paused: 'Pausado', sold: 'Vendido' };
+Astro.response.headers.set('Cache-Control', 'private, no-store');
+Astro.response.headers.set('Referrer-Policy', 'no-referrer');
+const sections = { avisos: 'Avisos', vendedores: 'Vendedores', consultas: 'Consultas', papelera: 'Papelera' };
+const query = Astro.url.searchParams;
+const requestedSection = query.get('vista') ?? '';
+const section = Object.hasOwn(sections, requestedSection) ? requestedSection : 'avisos';
+const requestedStatus = query.get('estado') ?? '';
+const status = Object.hasOwn(listingStatuses, requestedStatus) ? requestedStatus : '';
+const search = (query.get('q') ?? '').trim().slice(0, 100);
+const pageNumber = Math.max(1, parseInt(query.get('pagina') ?? '1', 10) || 1);
+const operation = query.get('accion') ?? '';
+const kind = query.get('tipo') === 'consulta' ? 'consulta' : 'aviso';
+const key = (query.get('id') ?? '').slice(0, 32);
+const operations = ['view', 'edit', 'seller', 'delete', 'restore', 'published', 'paused', 'sold'];
+
+function panelUrl(options: Record<string, string | number> = {}) {
+  const params = new URLSearchParams();
+  if (section !== 'avisos') params.set('vista', section);
+  if (search) params.set('q', search);
+  if (section === 'avisos' && status) params.set('estado', status);
+  if (pageNumber > 1) params.set('pagina', String(pageNumber));
+  for (const [name, value] of Object.entries(options)) {
+    if (value) params.set(name, String(value));
+    else params.delete(name);
+  }
+  return '/panel' + (params.size ? '?' + params : '');
+}
+
+const openDialog = (action: string, type: string, id: string | number) => panelUrl({ accion: action, tipo: type, id });
+const messages = {
+  edit: 'Cambios guardados.', seller: 'Datos del vendedor actualizados.', delete: 'Registro movido a la papelera.',
+  restore: 'Registro restaurado.', published: 'Aviso publicado.', paused: 'Aviso pausado.', sold: 'Aviso marcado como vendido.',
+};
+const notice = query.get('resultado') ?? '';
+const token = Astro.cookies.get(adminSessionCookie)?.value;
+const adminPassword = adminKey();
+const form = Astro.request.method === 'POST' ? await Astro.request.formData() : null;
+const authorized = hasAdminSession(token);
 let error = '';
-if (Astro.request.method === 'POST') {
-  const form = await Astro.request.formData();
+let submitted: FormData | undefined;
+const recordForDialog = () => {
+  if (!authorized || !operations.includes(operation) || (kind === 'consulta' && ['seller', 'published', 'paused', 'sold'].includes(operation))) return;
+  const record = managedRecord(kind, key);
+  if (record && Boolean(record.deleted_at) === (operation === 'restore')) return record;
+};
+if (form) {
   const action = text(form, 'action', 15);
   if (action === 'login') {
-    if (safeEqual(text(form, 'key', 250), adminKey())) {
-      Astro.cookies.set(cookie, adminSession(), { path: '/', maxAge: 3600, httpOnly: true, sameSite: 'strict', secure: Astro.url.protocol === 'https:' });
+    if (safeEqual(text(form, 'key', 250), adminPassword)) {
+      Astro.cookies.set(adminSessionCookie, createAdminSession(), {
+        path: '/', maxAge: adminSessionSeconds, httpOnly: true, sameSite: 'strict', secure: Astro.url.protocol === 'https:',
+      });
       return Astro.redirect('/panel', 303);
     }
     error = 'La clave no coincide.';
@@ -24,48 +69,183 @@ if (Astro.request.method === 'POST') {
     error = 'Ingresá al panel para continuar.';
     Astro.response.status = 403;
   } else if (action === 'logout') {
-    Astro.cookies.delete(cookie, { path: '/' });
+    revokeAdminSession(token);
+    Astro.cookies.delete(adminSessionCookie, { path: '/' });
     return Astro.redirect('/panel', 303);
-  } else if (['published', 'paused', 'sold'].includes(action)) {
-    db().prepare('UPDATE machines SET status = ? WHERE ref = ? AND sample = 0').run(action, text(form, 'ref', 30));
-    return Astro.redirect('/panel', 303);
+  } else if (action === 'retry-mail') {
+    await retryNotifications();
+    return Astro.redirect(panelUrl(), 303);
+  } else if (action === 'apply') {
+    try {
+      if (!recordForDialog() || operation === 'view') throw new FormError('El registro ya no está disponible.', 409);
+      applyPanelChange(kind, key, operation, form);
+      return Astro.redirect(panelUrl({ resultado: operation }), 303);
+    } catch (failure) {
+      error = failure instanceof FormError ? failure.message : 'No pudimos guardar los cambios. Probá de nuevo.';
+      if (!(failure instanceof FormError)) console.error(failure);
+      Astro.response.status = failure instanceof FormError ? failure.status : 500;
+      if (Astro.response.status === 400) submitted = form;
+    }
   }
 }
-const machines = authorized ? db().prepare("SELECT * FROM machines WHERE sample = 0 ORDER BY status != 'pending', id DESC").all() : [];
-const inquiries = authorized ? db().prepare('SELECT * FROM inquiries ORDER BY id DESC').all() : [];
+const selected = recordForDialog();
+const listings = authorized ? managedListings() : [];
+const inquiries = authorized ? managedInquiries() : [];
+const trashed = authorized ? [
+  ...managedListings(true).map(record => ({ ...record, kind: 'aviso', key: record.ref })),
+  ...managedInquiries(true).map(record => ({ ...record, kind: 'consulta', key: record.id })),
+].sort((a, b) => b.deleted_at - a.deleted_at) : [];
+const fold = (value: string) => value.toLowerCase().normalize('NFD').replace(/\p{Diacritic}/gu, '');
+const terms = fold(search).split(/\s+/).filter(Boolean);
+const matches = (...values: unknown[]) => {
+  const haystack = fold(values.join(' '));
+  return terms.every(term => haystack.includes(term));
+};
+const visibleListings = listings.filter(item => (!status || section !== 'avisos' || item.status === status)
+  && matches(item.ref, item.title, item.seller, item.email, item.phone, item.contact, item.locality, item.address, item.province, categories[item.category], item.brand, item.model));
+const visibleInquiries = inquiries.filter(item => matches(item.name, item.contact, item.message, item.machine_title, item.machine_ref));
+const visibleTrash = trashed.filter(item => matches(item.title, item.name, item.seller, item.ref));
+const resultCount = section === 'consultas' ? visibleInquiries.length : section === 'papelera' ? visibleTrash.length : visibleListings.length;
+const perPage = 20;
+const totalPages = Math.max(1, Math.ceil(resultCount / perPage));
+const currentPage = Math.min(pageNumber, totalPages);
+const offset = (currentPage - 1) * perPage;
+const pageRows = <T,>(items: T[]) => items.slice(offset, offset + perPage);
+const pendingMail = authorized ? db().prepare('SELECT count(*) AS count FROM notification_outbox WHERE sent_at IS NULL').get().count : 0;
+const date = new Intl.DateTimeFormat('es-AR', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'America/Argentina/Buenos_Aires' });
 ---
+
 <Layout title="Panel de Agua Máquinas" page="panel">
-  <div class="wrap interior">
-    <a class="back-link" href="/"><Icon name="back" size={18} /> Volver al catálogo</a>
-    <header class="page-heading"><p class="eyebrow">Gestión de la demo</p><h1>Panel de Agua Máquinas</h1><p>Revisá publicaciones y consultas en un mismo lugar.</p></header>
-    {error && <p class="message message-error" role="alert">{error}</p>}
+  <div class="wrap interior admin-workspace">
+    <a class="back-link" href="/"><Icon name="back" size={17} /> Volver al catálogo</a>
+    <header class="admin-header">
+      <div><h1>Panel de Agua Máquinas</h1><p>Gestioná los equipos, sus vendedores y las consultas desde un mismo lugar.</p></div>
+      {authorized && <div class="admin-header-actions">
+        <a class="button button-outline" href="/panel/portada">Gestionar portada</a>
+        <a class="button button-outline" href="/panel/avisos.csv" data-astro-reload download><Icon name="download" size={17} /> Descargar CSV</a>
+        <form method="post" action="/panel" data-astro-reload><button class="button button-outline" name="action" value="logout">Cerrar sesión</button></form>
+      </div>}
+    </header>
+
+    {error && !selected && <p class="message message-error admin-feedback" role="alert">{error}</p>}
     {authorized ? <>
-      <section class="panel-section" aria-labelledby="panel-machines"><h2 id="panel-machines">Avisos enviados <small>({machines.length})</small></h2>
-        {!machines.length && <p>Los avisos que se envíen desde «Publicar máquina» aparecen acá.</p>}
-        {machines.map(machine => <article class="panel-record">
-          <h3>{machine.title} <span class="tag">{statuses[machine.status]}</span></h3>
-          <p><small>{machine.ref} · {categories[machine.category]} · {machine.province} · {conditions[machine.condition]} · {priceLabel(machine)}</small></p>
-          <p>{machine.brand} {machine.model} · {machine.format_detail || formats[machine.format]} · {machine.capacity || 'Capacidad a confirmar'}</p>
-          <p>{machine.description}</p>
-          <p><strong>Vendedor:</strong> {machine.seller} · {machine.contact}</p>
-          <div class="thumbs">{getPhotos(machine).map((photo, index) => <a href={photo}><img src={photo} loading="lazy" alt={`Ampliar foto ${index + 1} de ${machine.title}`} /></a>)}</div>
-          {machine.video && <p><a href={machine.video} target="_blank" rel="noopener noreferrer">Revisar enlace de video</a></p>}
-          <form method="post"><input type="hidden" name="ref" value={machine.ref} />
-            {machine.status !== 'published' && <button class="button button-primary" name="action" value="published">{machine.status === 'pending' ? 'Aprobar y publicar' : 'Volver a publicar'}</button>}
-            {machine.status === 'published' && <button class="button button-outline" name="action" value="paused">Pausar aviso</button>}
-            {machine.status !== 'sold' && <button class="button button-outline" name="action" value="sold">Marcar como vendido</button>}
-          </form>
-        </article>)}
+      {Object.hasOwn(messages, notice) && <p class="message admin-feedback" role="status"><Icon name="check" size={17} /> {messages[notice]}</p>}
+      {pendingMail > 0 && <form class="admin-mail" method="post" action={panelUrl()} data-astro-reload>
+        <p>{pendingMail} {pendingMail === 1 ? 'alerta de correo pendiente' : 'alertas de correo pendientes'}</p>
+        <button class="button button-outline" name="action" value="retry-mail">Reintentar envío</button>
+      </form>}
+
+      {selected && <PanelDialog record={selected} kind={kind} operation={operation}
+        closeUrl={panelUrl() + '#registro-' + kind + '-' + key} actionUrl={openDialog(operation, kind, key)}
+        error={error} submitted={submitted} link={openDialog} />}
+
+      <section class="admin-sheet" aria-label="Planilla de gestión">
+        <nav class="admin-tabs" aria-label="Vistas de la planilla">
+          {Object.entries(sections).map(([id, label]) => (
+            <a href={id === 'avisos' ? '/panel' : '/panel?vista=' + id} aria-current={section === id ? 'page' : undefined}>
+              {label}<span>{id === 'consultas' ? inquiries.length : id === 'papelera' ? trashed.length : listings.length}</span>
+            </a>
+          ))}
+        </nav>
+        <form class="admin-filters" action="/panel" method="get" data-panel-filters>
+          {section !== 'avisos' && <input type="hidden" name="vista" value={section} />}
+          <label class="admin-search"><Icon name="search" size={18} /><span class="visually-hidden">Buscar en {sections[section]}</span><input name="q" value={search} maxlength="100" type="search" placeholder={section === 'consultas' ? 'Buscar por cliente o equipo' : 'Buscar por equipo o vendedor'} /></label>
+          {section === 'avisos' && <label class="admin-filter-status"><span class="visually-hidden">Estado del aviso</span><select name="estado"><option value="">Todos los estados</option>{Object.entries(listingStatuses).map(([id, label]) => <option value={id} selected={id === status}>{label}</option>)}</select></label>}
+          <button class="button button-outline" type="submit">Aplicar filtros</button>
+          {(search || status) && <a class="admin-clear" href={panelUrl({ q: '', estado: '', pagina: '' })}>Limpiar</a>}
+        </form>
+
+        {resultCount ? <div class="admin-table-scroll" tabindex="0" role="region" aria-label={'Tabla de ' + sections[section].toLowerCase()}>
+          <table class="admin-table">
+            <thead><tr>
+              {section === 'avisos' ? <><th scope="col">Equipo</th><th scope="col">Vendedor</th><th scope="col">Estado</th><th scope="col">Precio</th></>
+                : section === 'vendedores' ? <><th scope="col">Vendedor</th><th scope="col">Equipo</th><th scope="col">Contacto</th><th scope="col">Ubicación</th></>
+                : section === 'consultas' ? <><th scope="col">Cliente</th><th scope="col">Equipo</th><th scope="col">Contacto</th><th scope="col">Fecha</th></>
+                : <><th scope="col">Registro</th><th scope="col">Tipo</th><th scope="col">Enviado a la papelera</th></>}
+              <th scope="col">Acciones</th>
+            </tr></thead>
+            <tbody>
+              {(section === 'avisos' || section === 'vendedores') && pageRows(visibleListings).map(item => (
+                <tr id={'registro-aviso-' + item.ref} tabindex="-1">
+                  {section === 'avisos' ? <>
+                    <th scope="row"><a class="admin-row-title" href={openDialog('view', 'aviso', item.ref)}>{item.title}</a><small>{item.ref} · {categories[item.category]}</small></th>
+                    <td>{item.seller || 'Sin nombre'}<small>{item.verified_at ? 'Email verificado' : 'Email sin verificar'}</small></td>
+                    <td><span class="admin-state" data-status={item.status}>{listingStatuses[item.status]}</span></td>
+                    <td class="admin-price">{priceLabel(item)}</td>
+                  </> : <>
+                    <th scope="row"><a class="admin-row-title" href={openDialog('view', 'aviso', item.ref)}>{item.seller || 'Sin nombre'}</a><small>{item.verified_at ? 'Email verificado' : 'Email sin verificar'}</small></th>
+                    <td>{item.title}<small>{item.ref}</small></td><td>{item.email || item.contact || '—'}{item.phone && <small>{item.phone}</small>}</td>
+                    <td>{[item.address, item.locality].filter(Boolean).join(', ') || '—'}<small>{item.province}</small></td>
+                  </>}
+                  <td><div class="admin-row-actions">
+                    {section === 'avisos' && item.status === 'pending' && item.verified_at > 0 &&
+                      <a class="admin-icon-action admin-publish" href={openDialog('published', 'aviso', item.ref)}
+                        aria-label={'Publicar ' + item.title}><Icon name="check" size={17} /> Publicar</a>}
+                    <a class="admin-icon-action" href={openDialog(section === 'vendedores' ? 'seller' : 'edit', 'aviso', item.ref)} aria-label={'Editar ' + (section === 'vendedores' ? item.seller || 'vendedor' : item.title)} title="Editar"><Icon name="edit" size={17} /><span>Editar</span></a>
+                    {section === 'avisos' && <a class="admin-icon-action admin-danger-link" href={openDialog('delete', 'aviso', item.ref)} aria-label={'Eliminar ' + item.title} title="Eliminar aviso"><Icon name="trash" size={17} /></a>}
+                  </div></td>
+                </tr>
+              ))}
+              {section === 'consultas' && pageRows(visibleInquiries).map(item => (
+                <tr id={'registro-consulta-' + item.id} tabindex="-1">
+                  <th scope="row"><a class="admin-row-title" href={openDialog('view', 'consulta', item.id)}>{item.name}</a><small>{item.origin}</small></th>
+                  <td>{item.machine_title ?? (item.machine_ref || 'Pedido general')}{item.machine_ref && <small>{item.machine_ref}</small>}</td>
+                  <td>{item.contact}</td><td>{date.format(new Date(item.created_at.replace(' ', 'T') + 'Z'))}</td>
+                  <td><div class="admin-row-actions">
+                    <a class="admin-icon-action" href={openDialog('edit', 'consulta', item.id)} aria-label={'Editar consulta de ' + item.name} title="Editar consulta"><Icon name="edit" size={17} /><span>Editar</span></a>
+                    <a class="admin-icon-action admin-danger-link" href={openDialog('delete', 'consulta', item.id)} aria-label={'Eliminar consulta de ' + item.name} title="Eliminar consulta"><Icon name="trash" size={17} /></a>
+                  </div></td>
+                </tr>
+              ))}
+              {section === 'papelera' && pageRows(visibleTrash).map(item => (
+                <tr id={'registro-' + item.kind + '-' + item.key} tabindex="-1">
+                  <th scope="row">{item.title ?? item.name}<small>{item.ref ?? 'Consulta #' + item.id}</small></th>
+                  <td>{item.kind === 'aviso' ? 'Aviso' : 'Consulta'}</td><td>{date.format(item.deleted_at * 1000)}</td>
+                  <td><a class="admin-icon-action" href={openDialog('restore', item.kind, item.key)}><Icon name="restore" size={17} /> Restaurar</a></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div> : <div class="admin-empty">
+          <Icon name={section === 'papelera' ? 'trash' : 'list'} size={26} />
+          <h2>{search || status ? 'No encontramos coincidencias' : section === 'papelera' ? 'La papelera está vacía' : 'Todavía no hay registros'}</h2>
+          <p>{search || status ? 'Probá con otro término o limpiá los filtros.' : section === 'papelera' ? 'Los avisos y las consultas que elimines aparecerán acá.' : 'Las publicaciones y consultas nuevas aparecerán en su sección.'}</p>
+        </div>}
+        <footer class="admin-table-footer">
+          <p>{resultCount ? (offset + 1) + '–' + Math.min(offset + perPage, resultCount) + ' de ' + resultCount : '0 registros'}</p>
+          {totalPages > 1 && <nav aria-label="Paginación">
+            {currentPage > 1 && <a class="button button-outline" href={panelUrl({ pagina: currentPage - 1 })}>Anterior</a>}
+            <span>{currentPage} de {totalPages}</span>
+            {currentPage < totalPages && <a class="button button-outline" href={panelUrl({ pagina: currentPage + 1 })}>Siguiente</a>}
+          </nav>}
+        </footer>
       </section>
-      <section class="panel-section" aria-labelledby="panel-inquiries"><h2 id="panel-inquiries">Consultas <small>({inquiries.length})</small></h2>
-        {!inquiries.length && <p>Todavía no hay consultas.</p>}
-        {inquiries.map(item => <article class="panel-record"><h3>{item.name}</h3><p><small>{item.machine_ref || 'Pedido general'} · {item.origin}</small></p><p>{item.message}</p><p><strong>Contacto:</strong> {item.contact}</p></article>)}
-      </section>
-      <form method="post"><button class="button button-outline" name="action" value="logout">Cerrar sesión</button></form>
-    </> : <form method="post" class="form-card form-stack">
+    </> : <form method="post" class="form-card form-stack admin-login" data-astro-reload>
       <input type="hidden" name="action" value="login" />
       <label>Clave del panel<input type="password" name="key" required maxlength="250" autocomplete="current-password" /></label>
       <button type="submit" class="button button-primary">Ingresar</button>
     </form>}
   </div>
 </Layout>
+
+<script>
+  import '../components/admin-dialog';
+
+  let restoreFilterFocus = false;
+  document.addEventListener('change', event => {
+    const select = event.target;
+    if (!(select instanceof HTMLSelectElement) || select.name !== 'estado' || !select.form?.matches('[data-panel-filters]')) return;
+    restoreFilterFocus = true;
+    select.form.requestSubmit();
+  });
+  document.addEventListener('astro:page-load', () => {
+    if (!restoreFilterFocus) return;
+    restoreFilterFocus = false;
+    document.querySelector<HTMLSelectElement>('[data-panel-filters] select[name="estado"]')?.focus({ preventScroll: true });
+  });
+</script>
+
+<style>
+  .admin-publish { color: var(--deep); background: var(--tint); border-color: var(--field-border); }
+  .admin-publish:hover { color: #fff; background: var(--primary); border-color: var(--primary); }
+</style>

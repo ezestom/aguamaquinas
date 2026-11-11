@@ -1,0 +1,252 @@
+---
+import { resolve } from 'node:path';
+import sharp from 'sharp';
+import 'photoswipe/style.css';
+import Icon from './Icon.astro';
+import { dataDir } from '../lib/db.mjs';
+
+interface Props {
+  photos: string[];
+  title: string;
+}
+
+const { photos, title } = Astro.props;
+const slides = await Promise.all(photos.map(async (src) => {
+  const upload = /^\/media\/([a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}\.webp)$/.exec(src);
+  const sample = /^\/equipos\/([a-z]+\.webp)$/.exec(src);
+  const path = upload ? resolve(dataDir(), 'fotos', upload[1])
+    : sample ? resolve(import.meta.env.PROD ? 'dist/client' : 'public', 'equipos', sample[1]) : null;
+  if (!path) return null;
+
+  try {
+    const { width, height } = await sharp(path).metadata();
+    return width && height ? { src, width, height } : null;
+  } catch {
+    return null;
+  }
+})).then(results => results.filter(slide => slide !== null));
+---
+
+<product-gallery aria-label="Fotos del equipo" role="region">
+  {slides.length ? <>
+    <div class="gallery-stage">
+      <div class="gallery-track" data-track>
+        {slides.map(({ src, width, height }, index) => (
+          <a id={`foto-${index + 1}`} class="gallery-slide" href={src} data-astro-reload
+            data-pswp-width={width} data-pswp-height={height}
+            aria-label={`Ampliar foto ${index + 1} de ${slides.length}`}>
+            <img src={src} width={width} height={height} alt={`Foto ${index + 1} de ${title}`}
+              loading={index === 0 ? 'eager' : 'lazy'} fetchpriority={index === 0 ? 'high' : undefined} decoding="async" />
+          </a>
+        ))}
+      </div>
+      <button class="gallery-expand" data-expand type="button" hidden><Icon name="expand" size={17} /> Ampliar</button>
+      {slides.length > 1 && <div class="gallery-controls" data-controls hidden>
+        <button class="gallery-arrow gallery-previous" data-step="-1" type="button" aria-label="Foto anterior" disabled><Icon name="previous" size={21} /></button>
+        <button class="gallery-arrow gallery-next" data-step="1" type="button" aria-label="Foto siguiente"><Icon name="next" size={21} /></button>
+        <span class="gallery-count" aria-hidden="true"><span data-position>1</span> / {slides.length}</span>
+        <span class="visually-hidden" role="status" data-status>Foto 1 de {slides.length}</span>
+      </div>}
+    </div>
+    {slides.length > 1 && <div class="gallery-strip" role="group" aria-label="Elegir foto">
+      {slides.map(({ src }, index) => (
+        <a class="gallery-thumb" href={`#foto-${index + 1}`} data-thumb
+          aria-current={index === 0 ? 'true' : undefined} aria-label={`Ver foto ${index + 1}`}>
+          <img src={src} alt="" width="64" height="48" loading="lazy" decoding="async" />
+        </a>
+      ))}
+    </div>}
+  </> : <div class="gallery-empty"><Icon name="camera" size={24} /> Sin fotos disponibles</div>}
+</product-gallery>
+
+<script>
+  import PhotoSwipeLightbox from 'photoswipe/lightbox';
+  import { scrollToSnap, snapIndex } from './snap-carousel';
+
+  class ProductGallery extends HTMLElement {
+    cleanup?: () => void;
+
+    connectedCallback() {
+      const track = this.querySelector<HTMLElement>('[data-track]');
+      if (!track) return;
+
+      const slides = [...track.querySelectorAll<HTMLAnchorElement>('.gallery-slide')];
+      const thumbs = [...this.querySelectorAll<HTMLAnchorElement>('[data-thumb]')];
+      const previous = this.querySelector<HTMLButtonElement>('[data-step="-1"]');
+      const next = this.querySelector<HTMLButtonElement>('[data-step="1"]');
+      const controls = this.querySelector<HTMLElement>('[data-controls]');
+      const expand = this.querySelector<HTMLButtonElement>('[data-expand]');
+      const position = this.querySelector('[data-position]');
+      const status = this.querySelector('[data-status]');
+      const controller = new AbortController();
+      const { signal } = controller;
+      let active = -1;
+
+      function select(scrollIndex: number) {
+        const index = Math.max(0, Math.min(scrollIndex, slides.length - 1));
+        if (index === active) return;
+        active = index;
+        slides.forEach((slide, number) => { slide.tabIndex = number === index ? 0 : -1; });
+        thumbs.forEach((thumb, number) => {
+          if (number === index) thumb.setAttribute('aria-current', 'true');
+          else thumb.removeAttribute('aria-current');
+        });
+        if (previous) previous.disabled = index === 0;
+        if (next) next.disabled = index === slides.length - 1;
+        if (position) position.textContent = String(index + 1);
+        if (status) status.textContent = `Foto ${index + 1} de ${slides.length}`;
+      }
+
+      function goTo(index: number, focus = false) {
+        if (!track || !slides[index]) return;
+        scrollToSnap(track, index, focus);
+        if (focus) {
+          select(index);
+          slides[index].focus({ preventScroll: true });
+        }
+      }
+
+      track.addEventListener('scroll', () => {
+        if (track.clientWidth) select(snapIndex(track, slides.length));
+      }, { passive: true, signal });
+      track.addEventListener('keydown', event => {
+        if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+        event.preventDefault();
+        goTo(active + (event.key === 'ArrowLeft' ? -1 : 1), true);
+      }, { signal });
+      previous?.addEventListener('click', () => goTo(active - 1), { signal });
+      next?.addEventListener('click', () => goTo(active + 1), { signal });
+      expand?.addEventListener('click', () => slides[active].click(), { signal });
+      thumbs.forEach((thumb, index) => thumb.addEventListener('click', event => {
+        if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+        event.preventDefault();
+        goTo(index);
+      }, { signal }));
+
+      const lightbox = new PhotoSwipeLightbox({
+        gallery: track,
+        children: '.gallery-slide',
+        pswpModule: () => import('photoswipe'),
+        showHideAnimationType: 'fade',
+        bgOpacity: 0.96,
+        loop: false,
+        returnFocus: false,
+        closeTitle: 'Cerrar (Esc)',
+        zoomTitle: 'Acercar o alejar',
+        arrowPrevTitle: 'Foto anterior',
+        arrowNextTitle: 'Foto siguiente',
+        errorMsg: 'No se pudo cargar la foto.',
+      });
+      let zoomedIndex = 0;
+      lightbox.on('afterInit', () => lightbox.pswp?.element?.setAttribute('aria-label', 'Galería de fotos del equipo'));
+      lightbox.on('change', () => { zoomedIndex = lightbox.pswp?.currIndex ?? zoomedIndex; });
+      lightbox.on('destroy', () => { if (this.isConnected) goTo(zoomedIndex, true); });
+      lightbox.init();
+      select(snapIndex(track, slides.length));
+      if (controls) controls.hidden = false;
+      if (expand) expand.hidden = false;
+      this.cleanup = () => {
+        controller.abort();
+        lightbox.destroy();
+      };
+    }
+
+    disconnectedCallback() {
+      this.cleanup?.();
+    }
+  }
+
+  if (!customElements.get('product-gallery')) customElements.define('product-gallery', ProductGallery);
+</script>
+
+<style>
+  product-gallery {
+    display: block;
+    min-width: 0;
+    overflow: hidden;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--surface);
+  }
+  .gallery-stage { position: relative; background: var(--media-backdrop); }
+  .gallery-track {
+    display: flex;
+    aspect-ratio: 3 / 2;
+    overflow-x: auto;
+    overflow-y: hidden;
+    overscroll-behavior-x: contain;
+    scroll-snap-type: x mandatory;
+    scrollbar-width: none;
+  }
+  .gallery-slide {
+    flex: 0 0 100%;
+    scroll-snap-align: start;
+    cursor: zoom-in;
+  }
+  .gallery-slide:focus-visible { outline-offset: -4px; }
+  .gallery-slide img { width: 100%; height: 100%; object-fit: contain; }
+  .gallery-expand, .gallery-count, .gallery-arrow {
+    position: absolute;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: #142035e8;
+    color: #fff;
+    font-size: .8125rem;
+    font-weight: 600;
+  }
+  .gallery-expand {
+    inset: 12px 12px auto auto;
+    min-height: 44px;
+    gap: 7px;
+    padding: 0 12px;
+    border-radius: 8px;
+  }
+  .gallery-expand:hover, .gallery-arrow:hover:enabled { background: #142035; }
+  .gallery-arrow {
+    top: 50%;
+    width: 44px;
+    height: 44px;
+    border: 1px solid #ffffff40;
+    border-radius: 50%;
+    translate: 0 -50%;
+  }
+  .gallery-arrow:disabled { opacity: .45; cursor: default; }
+  .gallery-previous { left: 12px; }
+  .gallery-next { right: 12px; }
+  .gallery-count {
+    bottom: 12px;
+    left: 12px;
+    min-width: 52px;
+    gap: .35em;
+    padding: 4px 9px;
+    border-radius: 6px;
+    pointer-events: none;
+    font-variant-numeric: tabular-nums;
+  }
+  .gallery-strip {
+    display: flex;
+    gap: 8px;
+    padding: 10px 12px;
+    border-top: 1px solid var(--line);
+  }
+  .gallery-thumb {
+    flex: 0 1 64px;
+    min-width: 0;
+    padding: 2px;
+    border: 2px solid transparent;
+    border-radius: 8px;
+  }
+  .gallery-thumb:hover { background: var(--tint); }
+  .gallery-thumb[aria-current='true'] { border-color: var(--primary); }
+  .gallery-thumb img { width: 100%; height: 44px; border-radius: 4px; object-fit: cover; background: var(--media-backdrop); }
+  .gallery-empty {
+    display: grid;
+    aspect-ratio: 3 / 2;
+    place-content: center;
+    justify-items: center;
+    gap: 8px;
+    background: var(--media-backdrop);
+    color: var(--muted);
+  }
+</style>

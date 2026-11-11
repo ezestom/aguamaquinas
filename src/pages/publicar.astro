@@ -2,28 +2,45 @@
 import Layout from '../layouts/Layout.astro';
 import Icon from '../components/Icon.astro';
 import { categories, conditions, formats, provinces } from '../lib/catalog.mjs';
-import { FormError, submitMachine, text } from '../lib/submissions.mjs';
+import { FormError, startListingUpload, submitMachine, text, UploadLimitError } from '../lib/submissions.mjs';
+import { listingVerification, verificationCookie } from '../lib/listing-verification.mjs';
+import { deliverNotification } from '../lib/mail.mjs';
+
+Astro.response.headers.set('Cache-Control', 'private, no-store');
+const receipt = Astro.url.searchParams.get('enviada') ?? '';
+const sent = Astro.request.method === 'GET' && /^AM-[A-F0-9]{10}$/.test(receipt) ? receipt : '';
+const token = Astro.cookies.get(verificationCookie)?.value;
+const verified = listingVerification(token);
+if (!sent && !verified?.verified_at) return Astro.redirect('/publicar/verificar', 303);
 
 let form;
 let error = '';
 if (Astro.request.method === 'POST') {
+  let release;
   try {
+    release = startListingUpload();
     form = await Astro.request.formData();
-    const ref = await submitMachine(form);
+    const ref = await submitMachine(form, token);
+    Astro.cookies.delete(verificationCookie, { path: '/publicar' });
+    release();
+    release = undefined;
+    await deliverNotification(`aviso/${ref}`);
     return Astro.redirect(`/publicar?enviada=${ref}`, 303);
   } catch (failure) {
     if (!(failure instanceof FormError)) console.error(failure);
     error = failure instanceof FormError ? failure.message : 'No se pudo guardar el aviso. Revisá los archivos y probá de nuevo.';
-    Astro.response.status = failure instanceof FormError ? 400 : 500;
+    Astro.response.status = failure instanceof UploadLimitError ? failure.status : failure instanceof FormError ? 400 : 500;
+    if (failure instanceof UploadLimitError && failure.retryAfter) Astro.response.headers.set('Retry-After', String(failure.retryAfter));
+  } finally {
+    release?.();
   }
 }
 const value = (field) => text(form, field, 1600);
-const sent = /^AM-[A-F0-9]{10}$/.test(Astro.url.searchParams.get('enviada') ?? '') ? Astro.url.searchParams.get('enviada') : '';
 ---
 <Layout title="Publicar una máquina" page="publicar">
   <div class="wrap interior form-interior">
     <a class="back-link" href="/"><Icon name="back" size={18} /> Volver al catálogo</a>
-    <header class="page-heading"><p class="eyebrow">Vender maquinaria</p><h1>{sent ? 'Aviso recibido' : 'Publicá tu máquina gratis'}</h1>{!sent && <p>Completá los datos del equipo, agregá fotos y revisá el aviso antes de enviarlo.</p>}</header>
+    <header class="page-heading"><h1>{sent ? 'Aviso recibido' : 'Publicá tu máquina gratis'}</h1>{!sent && <p>Paso 2 de 2 · Agregá los datos y las fotos del equipo para que podamos revisar el aviso.</p>}</header>
     <div class="form-card">
       {sent ? <><p class="message" role="status">Tu aviso <strong>{sent}</strong> quedó pendiente de revisión.</p><a class="button button-primary" href="/">Volver al catálogo</a></> : <>
         {error && <p class="message message-error" role="alert">{error} Volvé a seleccionar las fotos antes de enviar.</p>}
@@ -48,21 +65,25 @@ const sent = /^AM-[A-F0-9]{10}$/.test(Astro.url.searchParams.get('enviada') ?? '
               <label class="photo-picker" id="photo-picker">
                 <input type="file" name="photos" id="photos" class="sr-only" multiple required accept="image/jpeg,image/png,image/webp" aria-describedby="photo-hint photo-formats" />
                 <span class="photo-picker-icon"><Icon name="camera" size={23} /></span>
-                <span><strong>Elegir fotos</strong><small id="photo-formats">De 1 a 5 en JPG, PNG o WebP · Hasta 3 MB por foto</small></span>
+                <span><strong>Agregar fotos</strong><small class="photo-drop-hint">Arrastralas acá o hacé clic para elegirlas.</small><small id="photo-formats">De 1 a 5 en JPG, PNG o WebP · Hasta 3 MB por foto</small></span>
               </label>
               <p class="field-hint" id="photo-status" role="status"></p>
               <div id="photos-preview" class="preview-images" aria-label="Vista previa de las fotos"></div>
             </div>
             <label>Enlace de video <small>Opcional · YouTube o Vimeo</small><input type="url" name="video" maxlength="300" placeholder="https://www.youtube.com/watch?v=…" value={value('video')} /></label>
           </fieldset>
-          <fieldset><legend>3. Precio y contacto</legend>
+          <fieldset><legend>3. Precio</legend>
+            <label>Precio en dólares (USD) <small>Dejalo vacío si preferís «Consultar precio».</small><input name="price" type="number" min="1" max="99999999999" step="1" placeholder="Ej. 12500" value={value('price')} /></label>
+          </fieldset>
+          <fieldset><legend>4. Contacto para la gestión del aviso</legend>
+            <p class="field-hint">Usamos estos datos para revisar el aviso y contactarte si alguien consulta por el equipo. Solo se ven en el panel de gestión.</p>
             <div class="field-grid">
-              <label>Precio <small>Vacío si preferís «Consultar»</small><input name="price" type="number" min="1" max="99999999999" step="1" value={value('price')} /></label>
-              <label>Moneda<select name="currency"><option value="ARS">Pesos (ARS)</option><option value="USD" selected={value('currency') === 'USD'}>Dólares (USD)</option></select></label>
-              <label>Tu nombre<input name="seller" required maxlength="80" autocomplete="name" value={value('seller')} /></label>
-              <label>Teléfono o correo<input name="contact" required maxlength="100" value={value('contact')} /></label>
+              <label>Nombre y apellido<input name="seller" required maxlength="80" autocomplete="name" value={value('seller')} /></label>
+              <label>WhatsApp o teléfono <small>Incluí el código de país.</small><input name="phone" type="tel" required maxlength="30" autocomplete="tel" placeholder="Ej. +54 9 …" value={value('phone')} /></label>
+              <label>Localidad del equipo<input name="locality" required maxlength="80" autocomplete="address-level2" value={value('locality')} /></label>
+              <label>Dirección del equipo<input name="address" required maxlength="160" autocomplete="street-address" value={value('address')} /></label>
             </div>
-            <p class="field-hint">Tu contacto queda en el panel. Como es una demo, usá datos de prueba.</p>
+            <p class="listing-verified"><Icon name="check" size={18} /><span><strong>Email verificado</strong> · {verified?.email}</span></p>
           </fieldset>
           <button class="button button-outline" id="show-preview" type="button" hidden>Ver vista previa</button>
           <div class="form-preview" id="listing-preview" tabindex="-1" hidden><p class="eyebrow">Vista previa del aviso</p><strong></strong><p data-summary></p><p data-description></p></div>
@@ -82,51 +103,73 @@ const sent = /^AM-[A-F0-9]{10}$/.test(Astro.url.searchParams.get('enviada') ?? '
       const preview = document.querySelector<HTMLElement>('#listing-preview');
       if (!input || !thumbs || !status || !picker || !form || !button || !preview) return;
 
-      let urls: string[] = [];
-      const clearPreviews = () => {
-        urls.forEach(url => URL.revokeObjectURL(url));
-        urls = [];
-        thumbs.replaceChildren();
+      const photos: { file: File; url: string }[] = [];
+      const allowedTypes = input.accept.split(',');
+      const sameFile = (a: File, b: File) =>
+        a.name === b.name && a.size === b.size && a.lastModified === b.lastModified;
+      const renderPhotos = (message = '') => {
+        const transfer = new DataTransfer();
+        for (const photo of photos) transfer.items.add(photo.file);
+        input.files = transfer.files;
+        status.classList.toggle('photo-error', Boolean(message));
+        status.textContent = [`${photos.length} de 5 fotos`, message].filter(Boolean).join(' · ');
+        thumbs.replaceChildren(...photos.map(({ file, url }, index) => {
+          const thumb = document.createElement('div');
+          thumb.className = 'photo-thumb';
+          const image = new Image();
+          image.src = url;
+          image.alt = `Foto ${index + 1}`;
+          const remove = document.createElement('button');
+          remove.type = 'button';
+          remove.textContent = '×';
+          remove.setAttribute('aria-label', `Quitar foto ${index + 1}: ${file.name}`);
+          remove.addEventListener('click', () => {
+            URL.revokeObjectURL(url);
+            photos.splice(index, 1);
+            renderPhotos();
+            const buttons = thumbs.querySelectorAll<HTMLButtonElement>('button');
+            (buttons[Math.min(index, buttons.length - 1)] ?? input).focus();
+          });
+          thumb.append(image, remove);
+          return thumb;
+        }));
       };
-      const updatePhotos = () => {
-        clearPreviews();
-        const files = Array.from(input.files ?? []);
-        const invalid = files.length > 5 || files.some(file => file.size > 3 * 1024 * 1024 || !['image/jpeg', 'image/png', 'image/webp'].includes(file.type));
-        const error = 'Elegí hasta cinco fotos JPG, PNG o WebP de hasta 3 MB.';
-        input.setCustomValidity(invalid ? error : '');
-        status.classList.toggle('photo-error', invalid);
-        status.textContent = invalid ? error : files.length ? `${files.length} ${files.length === 1 ? 'foto seleccionada' : 'fotos seleccionadas'}` : '';
-        if (invalid) return;
-        for (const [index, file] of files.entries()) {
-          const img = new Image();
-          const url = URL.createObjectURL(file);
-          urls.push(url);
-          img.src = url;
-          img.alt = `Foto seleccionada ${index + 1}`;
-          thumbs.append(img);
+      const addPhotos = (files: FileList | null) => {
+        const messages = new Set<string>();
+        for (const file of Array.from(files ?? [])) {
+          if (!file.size || file.size > 3 * 1024 * 1024 || !allowedTypes.includes(file.type)) {
+            messages.add('Elegí fotos JPG, PNG o WebP de hasta 3 MB.');
+          } else if (!photos.some(photo => sameFile(photo.file, file))) {
+            if (photos.length < 5) photos.push({ file, url: URL.createObjectURL(file) });
+            else messages.add('Alcanzaste el máximo. Quitá una foto para agregar otra.');
+          }
         }
+        renderPhotos([...messages].join(' '));
       };
-      input.addEventListener('change', updatePhotos);
+      input.addEventListener('change', () => addPhotos(input.files));
       picker.addEventListener('dragover', event => {
+        if (!event.dataTransfer?.types.includes('Files')) return;
         event.preventDefault();
+        event.dataTransfer.dropEffect = 'copy';
         picker.classList.add('is-dragging');
       });
-      picker.addEventListener('dragleave', () => picker.classList.remove('is-dragging'));
+      picker.addEventListener('dragleave', event => {
+        if (!(event.relatedTarget instanceof Node) || !picker.contains(event.relatedTarget)) picker.classList.remove('is-dragging');
+      });
       picker.addEventListener('drop', event => {
-        event.preventDefault();
         picker.classList.remove('is-dragging');
         if (!event.dataTransfer?.files.length) return;
-        input.files = event.dataTransfer.files;
-        updatePhotos();
+        event.preventDefault();
+        addPhotos(event.dataTransfer.files);
       });
-      document.addEventListener('astro:before-swap', clearPreviews, { once: true });
-      updatePhotos();
+      document.addEventListener('astro:before-swap', () => photos.forEach(photo => URL.revokeObjectURL(photo.url)), { once: true });
+      addPhotos(input.files);
       button.hidden = false;
       button.addEventListener('click', () => {
         const fields = new FormData(form);
         preview.querySelector('strong')!.textContent = String(fields.get('title') || 'Título del equipo');
         const price = Number(fields.get('price'));
-        const amount = price > 0 ? new Intl.NumberFormat('es-AR', { style: 'currency', currency: String(fields.get('currency')), maximumFractionDigits: 0 }).format(price) : 'Consultar precio';
+        const amount = price > 0 ? new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(price) : 'Consultar precio';
         preview.querySelector('[data-summary]')!.textContent = [fields.get('province'), fields.get('capacity'), amount].filter(Boolean).join(' · ');
         preview.querySelector('[data-description]')!.textContent = String(fields.get('description') || 'Agregá una descripción para completar el aviso.');
         preview.hidden = false;
@@ -135,3 +178,22 @@ const sent = /^AM-[A-F0-9]{10}$/.test(Astro.url.searchParams.get('enviada') ?? '
     });
   </script>
 </Layout>
+
+<style>
+  .listing-verified { display: flex; align-items: start; gap: 8px; color: var(--success-ink); overflow-wrap: anywhere; }
+  .listing-verified svg { flex: none; margin-top: 3px; }
+  .photo-drop-hint { margin-block: 3px; }
+  #photos-preview :global(.photo-thumb) { position: relative; }
+  #photos-preview :global(img) { display: block; width: 96px; height: 76px; border-radius: 8px; }
+  #photos-preview :global(button) {
+    position: absolute;
+    inset: 3px 3px auto auto;
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    color: #fff;
+    background: #14243a;
+    font-size: 1.25rem;
+    line-height: 1;
+  }
+</style>

@@ -1,24 +1,25 @@
 ---
 import Layout from '../../layouts/Layout.astro';
 import Icon from '../../components/Icon.astro';
+import ProductGallery from '../../components/ProductGallery.astro';
 import { categories, conditions, formats, priceLabel } from '../../lib/catalog.mjs';
 import { db, getPhotos } from '../../lib/db.mjs';
-const machine = db().prepare("SELECT * FROM machines WHERE ref = ? AND status = 'published'").get(Astro.params.ref);
+import { referenceEquipment } from '../../lib/reference-equipment.mjs';
+const machine = db().prepare("SELECT * FROM machines WHERE ref = ? AND status = 'published' AND sample = 0").get(Astro.params.ref)
+  ?? referenceEquipment.find(item => item.ref === Astro.params.ref);
 if (!machine) Astro.response.status = 404;
 const photos = machine ? getPhotos(machine) : [];
 const returnQuery = new URLSearchParams(Astro.url.searchParams);
 const back = `/${returnQuery.size ? `?${returnQuery}` : ''}`;
-const inquiry = new URLSearchParams({ equipo: machine?.ref ?? '' });
+const inquiry = new URLSearchParams();
+if (machine && !machine.reference) inquiry.set('equipo', machine.ref);
 if (returnQuery.get('origen') === 'alloatti') inquiry.set('origen', 'alloatti');
 ---
-<Layout title={machine?.title ?? 'Equipo no disponible'} page="ficha">
+<Layout title={machine?.title ?? 'Equipo no disponible'} page="ficha" noindex={!machine || Boolean(machine.reference)}>
   <div class="wrap interior">
     <a class="back-link" href={back}><Icon name="back" size={18} /> Volver a los resultados</a>
     {machine ? <div class="detail-grid">
-      <section class="detail-gallery" aria-label="Fotos del equipo">
-        <img src={photos[0]} width="900" height="600" alt={`Vista de ${machine.title.toLowerCase()}`} />
-        {photos.length > 1 && <div class="thumbs">{photos.map((photo, index) => <a href={photo}><img src={photo} loading="lazy" alt={`Ampliar foto ${index + 1}`} /></a>)}</div>}
-      </section>
+      <ProductGallery photos={photos} title={machine.title} />
       <section class="detail-copy">
         <p class="eyebrow">{categories[machine.category]} · {machine.ref}</p>
         <h1>{machine.title}</h1>
@@ -30,13 +31,12 @@ if (returnQuery.get('origen') === 'alloatti') inquiry.set('origen', 'alloatti');
           <div><dt>Marca</dt><dd>{machine.brand || 'A confirmar'}</dd></div>
           <div><dt>Modelo</dt><dd>{machine.model || 'A confirmar'}</dd></div>
         </dl>
-        <p class="detail-price">{priceLabel(machine)}</p>
+        {machine.reference ? <p class="detail-price">Equipo de referencia</p> : <p class="detail-price">{priceLabel(machine)}</p>}
         <div class="detail-actions">
-          <a class="button button-primary" href={`/consulta?${inquiry}`}>Consultar por esta máquina <Icon name="arrow" size={18} /></a>
+          <a class="button button-primary" href={`/consulta${inquiry.size ? `?${inquiry}` : ''}`}>{machine.reference ? 'Pedir un equipo similar' : 'Consultar por esta máquina'} <Icon name="arrow" size={18} /></a>
           {machine.video && <a class="button button-outline" href={machine.video} target="_blank" rel="noopener noreferrer"><Icon name="play" size={17} /> Ver video <Icon name="external" size={14} /></a>}
         </div>
         <div class="detail-desc"><h2>Sobre el equipo</h2><p>{machine.description}</p></div>
-        {machine.sample === 1 && <p class="sample-note">Equipo ficticio. La imagen es ilustrativa y el precio es de ejemplo.</p>}
       </section>
     </div> : <div class="empty"><h1>Equipo no disponible</h1><p>Podés buscar otro equipo o dejarnos un pedido.</p><a class="button button-primary" href="/consulta">Pedir un equipo</a></div>}
   </div>

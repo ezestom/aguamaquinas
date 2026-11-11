@@ -2,7 +2,6 @@ import { DatabaseSync } from 'node:sqlite';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { randomBytes, createHmac, timingSafeEqual } from 'node:crypto';
 import { resolve } from 'node:path';
-import { seed } from './seed.mjs';
 
 export const dataDir = () => resolve(process.env.AGUA_DATA_DIR || './data');
 let database;
@@ -27,23 +26,49 @@ export function db() {
       id INTEGER PRIMARY KEY, machine_ref TEXT NOT NULL, name TEXT NOT NULL, contact TEXT NOT NULL,
       message TEXT NOT NULL, origin TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     );
+    CREATE INDEX IF NOT EXISTS inquiries_created_at ON inquiries(created_at);
+    CREATE TABLE IF NOT EXISTS admin_sessions (
+      token_hash TEXT PRIMARY KEY, expires_at INTEGER NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS listing_upload_attempts (started_at INTEGER NOT NULL);
+    CREATE TABLE IF NOT EXISTS listing_verifications (
+      token_hash TEXT PRIMARY KEY, email TEXT NOT NULL, code_hash TEXT NOT NULL,
+      expires_at INTEGER NOT NULL, attempts INTEGER NOT NULL DEFAULT 0, verified_at INTEGER
+    );
+    CREATE TABLE IF NOT EXISTS listing_code_requests (email_hash TEXT NOT NULL, created_at INTEGER NOT NULL);
+    CREATE TABLE IF NOT EXISTS listing_contacts (
+      machine_ref TEXT PRIMARY KEY, email TEXT NOT NULL, phone TEXT NOT NULL,
+      address TEXT NOT NULL, locality TEXT NOT NULL, verified_at INTEGER NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS notification_outbox (event TEXT PRIMARY KEY, sent_at INTEGER);
+    CREATE TABLE IF NOT EXISTS panel_trash (
+      kind TEXT NOT NULL, record_key TEXT NOT NULL, previous_status TEXT,
+      deleted_at INTEGER NOT NULL DEFAULT (unixepoch()), PRIMARY KEY (kind, record_key)
+    );
+    CREATE TABLE IF NOT EXISTS home_campaigns (
+      id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT NOT NULL, description TEXT NOT NULL,
+      label TEXT NOT NULL, href TEXT NOT NULL, position INTEGER NOT NULL,
+      active INTEGER NOT NULL CHECK(active IN (0, 1)), image BLOB,
+      sponsored INTEGER NOT NULL DEFAULT 0 CHECK(sponsored IN (0, 1))
+    );
+    CREATE TABLE IF NOT EXISTS home_featured (
+      position INTEGER PRIMARY KEY, machine_ref TEXT NOT NULL UNIQUE,
+      sponsored INTEGER NOT NULL CHECK(sponsored IN (0, 1))
+    );
   `);
-  const insert = connection.prepare(`INSERT INTO machines
-    (ref, title, category, brand, model, province, format, format_detail, capacity, condition, price, currency, photos, description, status, sample)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'published', 1) ON CONFLICT(ref) DO NOTHING`);
-  connection.exec('BEGIN IMMEDIATE');
-  try {
-    for (const row of seed) {
-      const record = [...row];
-      record[0] = `AM-${record[0]}`;
-      record[12] = JSON.stringify([`/equipos/${record[12]}.webp`]);
-      insert.run(...record);
+  const hasSponsoredCampaigns = () => connection.prepare("SELECT 1 FROM pragma_table_info('home_campaigns') WHERE name = 'sponsored'").get();
+  if (!hasSponsoredCampaigns()) {
+    connection.exec('BEGIN IMMEDIATE');
+    try {
+      if (!hasSponsoredCampaigns()) {
+        connection.exec('ALTER TABLE home_campaigns ADD COLUMN sponsored INTEGER NOT NULL DEFAULT 0 CHECK(sponsored IN (0, 1))');
+      }
+      connection.exec('COMMIT');
+    } catch (error) {
+      connection.exec('ROLLBACK');
+      connection.close();
+      throw error;
     }
-    connection.exec('COMMIT');
-  } catch (error) {
-    connection.exec('ROLLBACK');
-    connection.close();
-    throw error;
   }
   database = connection;
   return database;
@@ -64,8 +89,28 @@ export function safeEqual(left, right) {
   return a.length === b.length && timingSafeEqual(a, b);
 }
 
-export function adminSession() {
-  return createHmac('sha256', adminKey()).update('aguamaquinas:panel:v1').digest('hex');
+export const adminSessionCookie = 'aguamaquinas_panel';
+export const adminSessionSeconds = 3600;
+
+const sessionHash = token => createHmac('sha256', adminKey()).update(`aguamaquinas:panel:v2:${token}`).digest('hex');
+const isSessionToken = token => typeof token === 'string' && /^[a-f0-9]{64}$/.test(token);
+
+export function createAdminSession() {
+  const token = randomBytes(32).toString('hex');
+  const connection = db();
+  connection.exec('DELETE FROM admin_sessions WHERE expires_at <= unixepoch()');
+  connection.prepare('INSERT INTO admin_sessions VALUES (?, unixepoch() + ?)').run(sessionHash(token), adminSessionSeconds);
+  return token;
+}
+
+export function hasAdminSession(token) {
+  return isSessionToken(token) && Boolean(db().prepare(
+    'SELECT 1 FROM admin_sessions WHERE token_hash = ? AND expires_at > unixepoch()',
+  ).get(sessionHash(token)));
+}
+
+export function revokeAdminSession(token) {
+  if (isSessionToken(token)) db().prepare('DELETE FROM admin_sessions WHERE token_hash = ?').run(sessionHash(token));
 }
 
 export function getPhotos(machine) {

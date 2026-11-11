@@ -4,7 +4,8 @@ import SiteFooter from '../components/SiteFooter.astro';
 import { ClientRouter } from 'astro:transitions';
 import interLatin from '@fontsource-variable/inter/files/inter-latin-wght-normal.woff2?url';
 import '../styles/global.css';
-const { title = 'Maquinaria usada para agua y soda', page = 'catalogo' } = Astro.props;
+const { title = 'Maquinaria usada para agua y soda', page = 'catalogo', noindex = false } = Astro.props;
+const darkModeEnabled = false;
 const origin = Astro.url.searchParams.get('origen') === 'alloatti' ? '?origen=alloatti' : '';
 ---
 <!doctype html>
@@ -12,16 +13,16 @@ const origin = Astro.url.searchParams.get('origen') === 'alloatti' ? '?origen=al
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="robots" content="noindex, nofollow" />
+    {(noindex || (page !== 'catalogo' && page !== 'ficha')) && <meta name="robots" content="noindex, nofollow" />}
     <meta name="theme-color" content="#ffffff" />
-    <script is:inline>
+    {darkModeEnabled && <script is:inline>
       try {
         if (localStorage.getItem('agua-theme') === 'dark') {
           document.documentElement.dataset.theme = 'dark';
           document.querySelector('meta[name="theme-color"]').content = '#151e2e';
         }
       } catch {}
-    </script>
+    </script>}
     <link rel="icon" type="image/webp" href="/agua-logo.webp" />
     <link rel="preload" href={interLatin} as="font" type="font/woff2" crossorigin="anonymous" />
     <title>{title} | Agua Máquinas</title>
@@ -29,29 +30,29 @@ const origin = Astro.url.searchParams.get('origen') === 'alloatti' ? '?origen=al
   </head>
   <body>
     <a class="skip-link" href="#contenido">Ir al contenido</a>
-    <header class="topbar">
+    <header class:list={['topbar', page === 'catalogo' && 'topbar-catalog']}>
       <div class="wrap topbar-inner">
         <a class="brand" href={'/' + origin} aria-label="Agua Máquinas, catálogo">
-          <img class="brand-icon" src="/agua-logo.webp" alt="" width="46" height="46" />
+          <img class="brand-icon" src="/agua-logo.webp" alt="" width="40" height="40" />
           <span><strong>Agua Máquinas</strong><small>Maquinaria para agua y soda</small></span>
         </a>
         <nav aria-label="Principal" class="top-nav">
           <a href={'/' + origin} aria-current={page === 'catalogo' ? 'page' : undefined}>Catálogo</a>
-          <a href={'/consulta' + origin}>Pedir un equipo</a>
+          <a href={'/consulta' + origin} aria-current={page === 'consulta' ? 'page' : undefined}>Pedir un equipo</a>
         </nav>
         <div class="header-actions">
-          <button class="theme-toggle" type="button" data-theme-toggle aria-label="Modo oscuro" aria-pressed="false" title="Cambiar tema">
-            <span class="theme-moon"><Icon name="moon" size={20} /></span>
-            <span class="theme-sun"><Icon name="sun" size={20} /></span>
-          </button>
-          <a class="button button-primary header-cta" href="/publicar"><Icon name="plus" size={18} /><span>Publicá gratis</span></a>
+          {darkModeEnabled && <button class="theme-toggle" type="button" data-theme-toggle aria-label="Modo oscuro" aria-pressed="false" title="Cambiar tema">
+            <span class="theme-moon"><Icon name="moon" size={18} /></span>
+            <span class="theme-sun"><Icon name="sun" size={18} /></span>
+          </button>}
+          <a class="button button-primary header-cta" href="/publicar"><Icon name="plus" size={16} /><span>Publicá gratis</span></a>
         </div>
       </div>
     </header>
     <main id="contenido" transition:animate={page === 'catalogo' ? 'none' : 'fade'}><slot /></main>
     <SiteFooter origin={origin} />
     <script>
-      let catalogScroll: number | undefined;
+      let catalogSearchTop: number | undefined;
       const darkMode = () => document.documentElement.dataset.theme === 'dark';
       const applyTheme = (target: Document, dark: boolean) => {
         target.documentElement.dataset.theme = dark ? 'dark' : 'light';
@@ -66,14 +67,17 @@ const origin = Astro.url.searchParams.get('origen') === 'alloatti' ? '?origen=al
         try { localStorage.setItem('agua-theme', dark ? 'dark' : 'light'); } catch {}
       });
       document.addEventListener('astro:before-swap', event => {
-        const { from, to, navigationType, newDocument } = event;
+        const { from, to, navigationType, newDocument, sourceElement } = event;
         applyTheme(newDocument, darkMode());
-        catalogScroll = navigationType !== 'traverse' && from.pathname === '/' && to.pathname === '/' && !to.hash
-          ? window.scrollY : undefined;
+        catalogSearchTop = navigationType !== 'traverse' && from.pathname === '/' && to.pathname === '/' && !to.hash && !sourceElement?.closest('.topbar')
+          ? document.querySelector('#explorar')?.getBoundingClientRect().top : undefined;
       });
       document.addEventListener('astro:after-swap', () => {
-        if (catalogScroll !== undefined) window.scrollTo({ top: catalogScroll, behavior: 'instant' });
-        catalogScroll = undefined;
+        const search = document.querySelector('#explorar');
+        if (search && catalogSearchTop !== undefined) {
+          window.scrollBy({ top: search.getBoundingClientRect().top - catalogSearchTop, behavior: 'instant' });
+        }
+        catalogSearchTop = undefined;
       });
     </script>
   </body>
