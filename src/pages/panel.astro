@@ -4,31 +4,37 @@ import Icon from '../components/Icon.astro';
 import PanelDialog from '../components/PanelDialog.astro';
 import { adminKey, adminSessionCookie, adminSessionSeconds, createAdminSession, db, hasAdminSession, revokeAdminSession, safeEqual } from '../lib/db.mjs';
 import { categories, priceLabel } from '../lib/catalog.mjs';
-import { FormError, text } from '../lib/submissions.mjs';
+import { FormError, submitInquiry, text } from '../lib/submissions.mjs';
 import { applyPanelChange, listingStatuses, managedInquiries, managedListings, managedRecord } from '../lib/listing-management.mjs';
+import { inquirySources, inquiryStages, moneyLabel } from '../lib/inquiry-options.mjs';
+import { availabilitySeconds } from '../lib/availability.mjs';
 import { retryNotifications } from '../lib/mail.mjs';
 import '../styles/admin.css';
 
 Astro.response.headers.set('Cache-Control', 'private, no-store');
 Astro.response.headers.set('Referrer-Policy', 'no-referrer');
-const sections = { avisos: 'Avisos', vendedores: 'Vendedores', consultas: 'Consultas', papelera: 'Papelera' };
+const sections = { avisos: 'Avisos', vendedores: 'Vendedores', consultas: 'Consultas web', papelera: 'Papelera' };
 const query = Astro.url.searchParams;
 const requestedSection = query.get('vista') ?? '';
 const section = Object.hasOwn(sections, requestedSection) ? requestedSection : 'avisos';
+const manualChannel = section === 'consultas' && query.get('canal') === 'manual';
 const requestedStatus = query.get('estado') ?? '';
-const status = Object.hasOwn(listingStatuses, requestedStatus) ? requestedStatus : '';
+const statuses = section === 'consultas' ? inquiryStages : listingStatuses;
+const status = Object.hasOwn(statuses, requestedStatus) ? requestedStatus : '';
 const search = (query.get('q') ?? '').trim().slice(0, 100);
 const pageNumber = Math.max(1, parseInt(query.get('pagina') ?? '1', 10) || 1);
 const operation = query.get('accion') ?? '';
 const kind = query.get('tipo') === 'consulta' ? 'consulta' : 'aviso';
 const key = (query.get('id') ?? '').slice(0, 32);
-const operations = ['view', 'edit', 'seller', 'delete', 'restore', 'published', 'paused', 'sold'];
+const operations = kind === 'consulta' ? ['view', 'edit', 'delete', 'restore', 'followup']
+  : ['view', 'edit', 'seller', 'delete', 'restore', 'published', 'paused', 'sold', 'confirm'];
 
 function panelUrl(options: Record<string, string | number> = {}) {
   const params = new URLSearchParams();
   if (section !== 'avisos') params.set('vista', section);
+  if (manualChannel) params.set('canal', 'manual');
   if (search) params.set('q', search);
-  if (section === 'avisos' && status) params.set('estado', status);
+  if (['avisos', 'consultas'].includes(section) && status) params.set('estado', status);
   if (pageNumber > 1) params.set('pagina', String(pageNumber));
   for (const [name, value] of Object.entries(options)) {
     if (value) params.set(name, String(value));
@@ -41,6 +47,7 @@ const openDialog = (action: string, type: string, id: string | number) => panelU
 const messages = {
   edit: 'Cambios guardados.', seller: 'Datos del vendedor actualizados.', delete: 'Registro movido a la papelera.',
   restore: 'Registro restaurado.', published: 'Aviso publicado.', paused: 'Aviso pausado.', sold: 'Aviso marcado como vendido.',
+  followup: 'Seguimiento actualizado.', 'new-inquiry': 'Consulta registrada.', confirm: 'Disponibilidad confirmada.',
 };
 const notice = query.get('resultado') ?? '';
 const token = Astro.cookies.get(adminSessionCookie)?.value;
@@ -49,8 +56,9 @@ const form = Astro.request.method === 'POST' ? await Astro.request.formData() : 
 const authorized = hasAdminSession(token);
 let error = '';
 let submitted: FormData | undefined;
+let manualForm: FormData | undefined;
 const recordForDialog = () => {
-  if (!authorized || !operations.includes(operation) || (kind === 'consulta' && ['seller', 'published', 'paused', 'sold'].includes(operation))) return;
+  if (!authorized || !operations.includes(operation)) return;
   const record = managedRecord(kind, key);
   if (record && Boolean(record.deleted_at) === (operation === 'restore')) return record;
 };
@@ -75,6 +83,18 @@ if (form) {
   } else if (action === 'retry-mail') {
     await retryNotifications();
     return Astro.redirect(panelUrl(), 303);
+  } else if (action === 'new-inquiry' && manualChannel) {
+    try {
+      const source = text(form, 'origin', 32);
+      if (!Object.hasOwn(inquirySources, source)) throw new FormError('Elegí el origen de la consulta.');
+      submitInquiry(form, text(form, 'reference', 32).toUpperCase(), source, true);
+      return Astro.redirect('/panel?vista=consultas&canal=manual&resultado=new-inquiry', 303);
+    } catch (failure) {
+      error = failure instanceof FormError ? failure.message : 'No pudimos registrar la consulta. Probá de nuevo.';
+      if (!(failure instanceof FormError)) console.error(failure);
+      Astro.response.status = failure instanceof FormError ? failure.status : 500;
+      manualForm = form;
+    }
   } else if (action === 'apply') {
     try {
       if (!recordForDialog() || operation === 'view') throw new FormError('El registro ya no está disponible.', 409);
@@ -91,6 +111,7 @@ if (form) {
 const selected = recordForDialog();
 const listings = authorized ? managedListings() : [];
 const inquiries = authorized ? managedInquiries() : [];
+const webCount = inquiries.filter(item => !item.manual).length;
 const trashed = authorized ? [
   ...managedListings(true).map(record => ({ ...record, kind: 'aviso', key: record.ref })),
   ...managedInquiries(true).map(record => ({ ...record, kind: 'consulta', key: record.id })),
@@ -103,7 +124,9 @@ const matches = (...values: unknown[]) => {
 };
 const visibleListings = listings.filter(item => (!status || section !== 'avisos' || item.status === status)
   && matches(item.ref, item.title, item.seller, item.email, item.phone, item.contact, item.locality, item.address, item.province, categories[item.category], item.brand, item.model));
-const visibleInquiries = inquiries.filter(item => matches(item.name, item.contact, item.message, item.machine_title, item.machine_ref));
+const visibleInquiries = inquiries.filter(item => (section !== 'consultas' || !status || item.stage === status)
+  && Boolean(item.manual) === manualChannel
+  && matches(item.name, item.contact, item.buyer_email, item.buyer_whatsapp, item.message, item.machine_title, item.machine_ref, item.origin, item.location));
 const visibleTrash = trashed.filter(item => matches(item.title, item.name, item.seller, item.ref));
 const resultCount = section === 'consultas' ? visibleInquiries.length : section === 'papelera' ? visibleTrash.length : visibleListings.length;
 const perPage = 20;
@@ -113,6 +136,7 @@ const offset = (currentPage - 1) * perPage;
 const pageRows = <T,>(items: T[]) => items.slice(offset, offset + perPage);
 const pendingMail = authorized ? db().prepare('SELECT count(*) AS count FROM notification_outbox WHERE sent_at IS NULL').get().count : 0;
 const date = new Intl.DateTimeFormat('es-AR', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'America/Argentina/Buenos_Aires' });
+const dueBefore = Math.floor(Date.now() / 1000) - availabilitySeconds;
 ---
 
 <Layout title="Panel de Agua Máquinas" page="panel">
@@ -122,7 +146,9 @@ const date = new Intl.DateTimeFormat('es-AR', { day: 'numeric', month: 'short', 
       <div><h1>Panel de Agua Máquinas</h1><p>Gestioná los equipos, sus vendedores y las consultas desde un mismo lugar.</p></div>
       {authorized && <div class="admin-header-actions">
         <a class="button button-outline" href="/panel/portada">Gestionar portada</a>
-        <a class="button button-outline" href="/panel/avisos.csv" data-astro-reload download><Icon name="download" size={17} /> Descargar CSV</a>
+        <a class="button button-outline" href={section === 'consultas' ? '/panel/consultas.csv?canal=' + (manualChannel ? 'manual' : 'web') : '/panel/avisos.csv'} data-astro-reload download>
+          <Icon name="download" size={17} /> {section === 'consultas' ? 'Exportar consultas' : 'Exportar avisos'}
+        </a>
         <form method="post" action="/panel" data-astro-reload><button class="button button-outline" name="action" value="logout">Cerrar sesión</button></form>
       </div>}
     </header>
@@ -143,14 +169,35 @@ const date = new Intl.DateTimeFormat('es-AR', { day: 'numeric', month: 'short', 
         <nav class="admin-tabs" aria-label="Vistas de la planilla">
           {Object.entries(sections).map(([id, label]) => (
             <a href={id === 'avisos' ? '/panel' : '/panel?vista=' + id} aria-current={section === id ? 'page' : undefined}>
-              {label}<span>{id === 'consultas' ? inquiries.length : id === 'papelera' ? trashed.length : listings.length}</span>
+              {label}<span>{id === 'consultas' ? webCount : id === 'papelera' ? trashed.length : listings.length}</span>
             </a>
           ))}
         </nav>
+        {section === 'consultas' && <nav class="inquiry-channels" aria-label="Canal de consultas">
+          <a href="/panel?vista=consultas" aria-current={!manualChannel ? 'page' : undefined}>Web ({webCount})</a>
+          <a href="/panel?vista=consultas&canal=manual" aria-current={manualChannel ? 'page' : undefined}>Registro manual ({inquiries.length - webCount})</a>
+        </nav>}
+        {manualChannel && <details class="admin-manual-inquiry" open={Boolean(manualForm)}>
+          <summary>Registrar consulta</summary>
+          <form class="form-stack" action={panelUrl()} method="post" data-astro-reload>
+            <input type="hidden" name="action" value="new-inquiry" />
+            <div class="admin-fields">
+              <label>Nombre<input name="name" required maxlength="80" value={text(manualForm, 'name', 80)} /></label>
+              <label>Teléfono o correo<input name="contact" required maxlength="100" value={text(manualForm, 'contact', 100)} /></label>
+              <label>Origen<select name="origin" required><option value="">Elegí un canal</option>
+                {Object.entries(inquirySources).map(([id, label]) => <option value={id} selected={manualForm?.get('origin') === id}>{label}</option>)}
+              </select></label>
+              <label>Referencia del aviso <small>Opcional</small><input name="reference" maxlength="32" value={text(manualForm, 'reference', 32)} /></label>
+              <label class="admin-field-wide">Consulta<textarea name="message" required maxlength="1200">{text(manualForm, 'message', 1200)}</textarea></label>
+            </div>
+            <button class="button button-primary" type="submit">Guardar consulta</button>
+          </form>
+        </details>}
         <form class="admin-filters" action="/panel" method="get" data-panel-filters>
           {section !== 'avisos' && <input type="hidden" name="vista" value={section} />}
+          {manualChannel && <input type="hidden" name="canal" value="manual" />}
           <label class="admin-search"><Icon name="search" size={18} /><span class="visually-hidden">Buscar en {sections[section]}</span><input name="q" value={search} maxlength="100" type="search" placeholder={section === 'consultas' ? 'Buscar por cliente o equipo' : 'Buscar por equipo o vendedor'} /></label>
-          {section === 'avisos' && <label class="admin-filter-status"><span class="visually-hidden">Estado del aviso</span><select name="estado"><option value="">Todos los estados</option>{Object.entries(listingStatuses).map(([id, label]) => <option value={id} selected={id === status}>{label}</option>)}</select></label>}
+          {['avisos', 'consultas'].includes(section) && <label class="admin-filter-status"><span class="visually-hidden">Estado {section === 'avisos' ? 'del aviso' : 'de la consulta'}</span><select name="estado"><option value="">Todos los estados</option>{Object.entries(statuses).map(([id, label]) => <option value={id} selected={id === status}>{label}</option>)}</select></label>}
           <button class="button button-outline" type="submit">Aplicar filtros</button>
           {(search || status) && <a class="admin-clear" href={panelUrl({ q: '', estado: '', pagina: '' })}>Limpiar</a>}
         </form>
@@ -160,7 +207,7 @@ const date = new Intl.DateTimeFormat('es-AR', { day: 'numeric', month: 'short', 
             <thead><tr>
               {section === 'avisos' ? <><th scope="col">Equipo</th><th scope="col">Vendedor</th><th scope="col">Estado</th><th scope="col">Precio</th></>
                 : section === 'vendedores' ? <><th scope="col">Vendedor</th><th scope="col">Equipo</th><th scope="col">Contacto</th><th scope="col">Ubicación</th></>
-                : section === 'consultas' ? <><th scope="col">Cliente</th><th scope="col">Equipo</th><th scope="col">Contacto</th><th scope="col">Fecha</th></>
+                : section === 'consultas' ? <><th scope="col">Cliente</th><th scope="col">Equipo</th><th scope="col">Estado</th><th scope="col">Ingreso</th></>
                 : <><th scope="col">Registro</th><th scope="col">Tipo</th><th scope="col">Enviado a la papelera</th></>}
               <th scope="col">Acciones</th>
             </tr></thead>
@@ -170,7 +217,9 @@ const date = new Intl.DateTimeFormat('es-AR', { day: 'numeric', month: 'short', 
                   {section === 'avisos' ? <>
                     <th scope="row"><a class="admin-row-title" href={openDialog('view', 'aviso', item.ref)}>{item.title}</a><small>{item.ref} · {categories[item.category]}</small></th>
                     <td>{item.seller || 'Sin nombre'}<small>{item.verified_at ? 'Email verificado' : 'Email sin verificar'}</small></td>
-                    <td><span class="admin-state" data-status={item.status}>{listingStatuses[item.status]}</span></td>
+                    <td><span class="admin-state" data-status={item.status}>{listingStatuses[item.status]}</span>
+                      {item.status === 'published' && (!item.confirmed_at || item.confirmed_at <= dueBefore) && <small>Por reconfirmar</small>}
+                    </td>
                     <td class="admin-price">{priceLabel(item)}</td>
                   </> : <>
                     <th scope="row"><a class="admin-row-title" href={openDialog('view', 'aviso', item.ref)}>{item.seller || 'Sin nombre'}</a><small>{item.verified_at ? 'Email verificado' : 'Email sin verificar'}</small></th>
@@ -188,11 +237,17 @@ const date = new Intl.DateTimeFormat('es-AR', { day: 'numeric', month: 'short', 
               ))}
               {section === 'consultas' && pageRows(visibleInquiries).map(item => (
                 <tr id={'registro-consulta-' + item.id} tabindex="-1">
-                  <th scope="row"><a class="admin-row-title" href={openDialog('view', 'consulta', item.id)}>{item.name}</a><small>{item.origin}</small></th>
+                  <th scope="row"><a class="admin-row-title" href={openDialog('view', 'consulta', item.id)}>{item.name}</a>
+                    <small>{[item.origin, item.contact].filter(Boolean).join(' · ')}</small>
+                    {item.buyer_whatsapp && <small>{item.buyer_whatsapp}</small>}
+                    {item.buyer_email && <small>{item.buyer_email}</small>}
+                  </th>
                   <td>{item.machine_title ?? (item.machine_ref || 'Pedido general')}{item.machine_ref && <small>{item.machine_ref}</small>}</td>
-                  <td>{item.contact}</td><td>{date.format(new Date(item.created_at.replace(' ', 'T') + 'Z'))}</td>
+                  <td><span class="admin-state" data-status={item.stage}>{inquiryStages[item.stage]}</span>
+                    {item.commission_paid != null && <small>Cobrado · {moneyLabel(item.commission_paid, item.commission_currency)}</small>}
+                  </td><td>{date.format(new Date(item.created_at.replace(' ', 'T') + 'Z'))}</td>
                   <td><div class="admin-row-actions">
-                    <a class="admin-icon-action" href={openDialog('edit', 'consulta', item.id)} aria-label={'Editar consulta de ' + item.name} title="Editar consulta"><Icon name="edit" size={17} /><span>Editar</span></a>
+                    <a class="admin-icon-action" href={openDialog('followup', 'consulta', item.id)} aria-label={'Seguimiento de ' + item.name} title="Actualizar seguimiento"><Icon name="edit" size={17} /><span>Seguimiento</span></a>
                     <a class="admin-icon-action admin-danger-link" href={openDialog('delete', 'consulta', item.id)} aria-label={'Eliminar consulta de ' + item.name} title="Eliminar consulta"><Icon name="trash" size={17} /></a>
                   </div></td>
                 </tr>
@@ -246,6 +301,13 @@ const date = new Intl.DateTimeFormat('es-AR', { day: 'numeric', month: 'short', 
 </script>
 
 <style>
+  .inquiry-channels { display: flex; flex-wrap: wrap; gap: 6px 14px; padding: 8px 18px 0; font-size: .875rem; }
+  .inquiry-channels a { display: inline-flex; align-items: center; min-height: 38px; color: var(--muted); }
+  .inquiry-channels a[aria-current] { color: var(--deep); font-weight: 700; text-decoration: underline; text-underline-offset: 3px; }
+  .admin-manual-inquiry { padding: 0 18px 10px; }
+  .admin-manual-inquiry summary { color: var(--deep); font-weight: 650; cursor: pointer; width: fit-content; }
+  .admin-manual-inquiry form { margin-top: 12px; }
+  .admin-state[data-status="closed"] { color: var(--success-ink); background: var(--success-bg); }
   .admin-publish { color: var(--deep); background: var(--tint); border-color: var(--field-border); }
   .admin-publish:hover { color: #fff; background: var(--primary); border-color: var(--primary); }
 </style>

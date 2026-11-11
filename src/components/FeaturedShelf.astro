@@ -108,8 +108,12 @@ const { machines, params } = Astro.props;
 
 <style>
 	.featured-shelf {
-		background: var(--surface);
-		padding-block: 12px 16px;
+		background: linear-gradient(
+			to bottom,
+			var(--campaign-fade-edge, var(--surface)),
+			var(--surface) 110px
+		);
+		padding-block: 24px 32px;
 	}
 	featured-shelf {
 		display: block;
@@ -119,10 +123,10 @@ const { machines, params } = Astro.props;
 		align-items: center;
 		justify-content: space-between;
 		min-height: 44px;
-		margin-bottom: 5px;
+		margin-bottom: 16px;
 	}
 	.featured-heading h2 {
-		font-size: 1.125rem;
+		font-size: 1.375rem;
 		font-weight: 650;
 		letter-spacing: -0.015em;
 	}
@@ -136,7 +140,7 @@ const { machines, params } = Astro.props;
 		width: 44px;
 		height: 44px;
 		border: 1px solid var(--line);
-		border-radius: 50%;
+		border-radius: var(--radius);
 		background: var(--surface);
 		color: var(--deep);
 	}
@@ -149,7 +153,7 @@ const { machines, params } = Astro.props;
 		background: var(--tint);
 	}
 	.featured-track {
-		--gap: 12px;
+		--gap: 24px;
 		display: grid;
 		grid-auto-flow: column;
 		grid-auto-columns: max(
@@ -157,6 +161,7 @@ const { machines, params } = Astro.props;
 			calc((100% - 4 * var(--gap)) / 5)
 		);
 		gap: var(--gap);
+		padding-block: 3px 12px;
 		overflow-x: auto;
 		overscroll-behavior-x: contain;
 		scrollbar-width: none;

@@ -12,6 +12,7 @@ interface Slide {
   photo?: string;
   fit?: 'contain';
   backdrop?: string;
+  productPhoto?: string;
 }
 
 interface Props {
@@ -24,22 +25,12 @@ const previews = import.meta.env.DEV && !campaigns.length
   ? (await import('../lib/campaign-previews.mjs')).default
   : [];
 const slides: Slide[] = campaigns.length ? campaigns : previews.length ? previews : [
-  { title: '¿Qué equipo necesitás?', description: 'Contanos qué buscás para tu línea de envasado.', label: 'Pedir un equipo', href: inquiryHref, backdrop: '/equipos/linea.webp' },
-  { title: 'Vendé tu maquinaria', description: 'Publicá tu equipo para que lo encuentren compradores del sector.', label: 'Publicar gratis', href: '/publicar', backdrop: '/equipos/lavadora.webp' },
+  { title: '¿Qué equipo necesitás?', description: 'Contanos qué buscás para tu línea de envasado.', label: 'Pedir un equipo', href: inquiryHref, productPhoto: '/equipos/linea.webp' },
+  { title: 'Vendé tu maquinaria', description: 'Publicá tu equipo para que lo encuentren compradores del sector.', label: 'Publicar gratis', href: '/publicar', productPhoto: '/equipos/lavadora.webp' },
 ];
 ---
 <home-carousel class="home-carousel" role="region" aria-label="Campañas de Agua Máquinas">
-  {previews.length > 0 && <span class="campaign-preview-label">Vista de prueba</span>}
   {slides.length > 1 && <div class="home-campaign-controls" data-controls hidden>
-    <div class="home-campaign-picker">
-      <button class="campaign-rotation" type="button" data-rotation aria-label="Pausar rotación">
-        <span data-pause><Icon name="pause" size={16} /></span>
-        <span data-play hidden><Icon name="play" size={16} /></span>
-      </button>
-      <div class="home-campaign-dots" role="group" aria-label="Elegir campaña">
-        {slides.map((slide, index) => <button type="button" data-dot={index} aria-label={`Campaña ${index + 1} de ${slides.length}, ${slide.title}`} aria-current={index === 0 ? 'true' : undefined}><span></span></button>)}
-      </div>
-    </div>
     <button class="campaign-arrow" type="button" data-step="-1" aria-label="Campaña anterior"><Icon name="previous" size={24} /></button>
     <button class="campaign-arrow" type="button" data-step="1" aria-label="Campaña siguiente"><Icon name="next" size={24} /></button>
     <span class="visually-hidden" data-status role="status"></span>
@@ -48,10 +39,19 @@ const slides: Slide[] = campaigns.length ? campaigns : previews.length ? preview
     {slides.map((slide, index) => {
       const photo = slide.photo ?? (slide.has_image ? `/campanas/${slide.id}.webp` : '');
       const sponsored = Boolean(slide.sponsored);
-      return <article class:list={['home-campaign', (photo || slide.backdrop) && 'home-campaign-image', slide.backdrop && 'home-campaign-backdrop']} data-slide aria-label={slide.title}>
+      const actionLabel = sponsored ? `Ver ${slide.title}` : slide.label;
+      const productPhoto = slide.productPhoto ?? (sponsored ? photo : '');
+      return <article class:list={['home-campaign', (photo || slide.backdrop) && 'home-campaign-image', slide.backdrop && 'home-campaign-backdrop', productPhoto && 'home-campaign-product']} data-slide aria-label={slide.title}>
         {slide.backdrop && <img class="home-campaign-photo" src={slide.backdrop} alt="" loading={index === 0 ? 'eager' : 'lazy'} decoding="async" />}
         {sponsored && <span class="campaign-sponsored">Publicidad</span>}
-        {slide.photo ? <img class:list={['home-campaign-photo', 'preview-photo', slide.fit === 'contain' && 'preview-photo-contained']} src={photo} alt={`Banner de ejemplo de ${slide.title}`} loading={index === 0 ? 'eager' : 'lazy'} decoding="async" />
+        {productPhoto ? <div class="wrap campaign-layout">
+          <div class="campaign-product-copy">
+            <h2>{slide.title}</h2>
+            <p>{slide.description}</p>
+            <a class="button home-campaign-cta" href={slide.href} rel={sponsored ? 'sponsored' : undefined}>{actionLabel} <Icon name="arrow" size={18} /></a>
+          </div>
+          <img class:list={['campaign-product-photo', sponsored && 'campaign-sponsored-photo']} src={productPhoto} alt="" width="720" height="400" loading={index === 0 ? 'eager' : 'lazy'} decoding="async" />
+        </div> : slide.photo ? <img class:list={['home-campaign-photo', 'preview-photo', slide.fit === 'contain' && 'preview-photo-contained']} src={photo} alt={`Banner de ejemplo de ${slide.title}`} loading={index === 0 ? 'eager' : 'lazy'} decoding="async" />
           : photo ? <a class="home-campaign-image-link" href={slide.href} rel={sponsored ? 'sponsored' : undefined}>
             <img class="home-campaign-photo" src={photo} alt={slide.title} loading={index === 0 ? 'eager' : 'lazy'} decoding="async" />
             <span class="visually-hidden">{slide.description}. {slide.label}</span>
@@ -59,7 +59,7 @@ const slides: Slide[] = campaigns.length ? campaigns : previews.length ? preview
           : <div class="wrap home-campaign-copy">
             <h2>{slide.title}</h2>
             <p>{slide.description}</p>
-            <a class="button button-outline home-campaign-cta" href={slide.href} rel={sponsored ? 'sponsored' : undefined}>{slide.label} <Icon name="arrow" size={17} /></a>
+            <a class="button button-outline home-campaign-cta" href={slide.href} rel={sponsored ? 'sponsored' : undefined}>{actionLabel} <Icon name="arrow" size={17} /></a>
           </div>}
       </article>;
     })}
@@ -71,78 +71,50 @@ const slides: Slide[] = campaigns.length ? campaigns : previews.length ? preview
 
   class HomeCarousel extends HTMLElement {
     listeners?: AbortController;
-    timer?: number;
 
     connectedCallback() {
       const track = this.querySelector<HTMLElement>('[data-track]');
       const controls = this.querySelector<HTMLElement>('[data-controls]');
-      const rotation = controls?.querySelector<HTMLButtonElement>('[data-rotation]');
-      if (!track || !controls || !rotation) return;
+      const previous = controls?.querySelector<HTMLButtonElement>('[data-step="-1"]');
+      const next = controls?.querySelector<HTMLButtonElement>('[data-step="1"]');
+      if (!track || !controls || !previous || !next) return;
       const slides = [...track.querySelectorAll<HTMLElement>('[data-slide]')];
-      const dots = [...controls.querySelectorAll<HTMLButtonElement>('[data-dot]')];
       const status = controls.querySelector('[data-status]');
-      const motion = matchMedia('(prefers-reduced-motion: reduce)');
       this.listeners = new AbortController();
       const { signal } = this.listeners;
       let active = -1;
-      let rotating = !motion.matches;
-      let hovering = false;
-
-      const schedule = () => {
-        window.clearTimeout(this.timer);
-        if (rotating && !hovering && !document.hidden && !this.matches(':focus-within')) {
-          this.timer = window.setTimeout(() => goTo(active + 1), 5000);
-        }
-      };
       const sync = () => {
         const index = snapIndex(track, slides.length);
         if (active === index) return;
         active = index;
         slides.forEach((slide, index) => {
           slide.inert = index !== active;
-          if (index === active) dots[index].setAttribute('aria-current', 'true');
-          else dots[index].removeAttribute('aria-current');
         });
       };
-      const goTo = (index: number, announce = false) => {
-        const next = (index + slides.length) % slides.length;
-        scrollToSnap(track, next, Math.abs(next - active) > 1);
-        if (announce && status) status.textContent = dots[next].getAttribute('aria-label');
-        schedule();
-      };
-      const updateRotation = () => {
-        rotation.setAttribute('aria-label', rotating ? 'Pausar rotación' : 'Reproducir rotación');
-        rotation.querySelector<HTMLElement>('[data-pause]')!.hidden = !rotating;
-        rotation.querySelector<HTMLElement>('[data-play]')!.hidden = rotating;
-        schedule();
+      const goTo = (index: number) => {
+        const target = (index + slides.length) % slides.length;
+        scrollToSnap(track, target, Math.abs(target - active) > 1);
+        if (status) status.textContent = slides[target].getAttribute('aria-label');
       };
 
-      track.addEventListener('scroll', () => { sync(); schedule(); }, { passive: true, signal });
-      controls.querySelector('[data-step="-1"]')?.addEventListener('click', () => goTo(active - 1, true), { signal });
-      controls.querySelector('[data-step="1"]')?.addEventListener('click', () => goTo(active + 1, true), { signal });
-      dots.forEach((dot, index) => dot.addEventListener('click', () => goTo(index, true), { signal }));
+      track.addEventListener('scroll', sync, { passive: true, signal });
+      previous.addEventListener('click', () => goTo(active - 1), { signal });
+      next.addEventListener('click', () => goTo(active + 1), { signal });
       this.addEventListener('keydown', event => {
         if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
         event.preventDefault();
-        const index = active + (event.key === 'ArrowLeft' ? -1 : 1);
-        if (track.contains(document.activeElement)) rotation.focus({ preventScroll: true });
-        goTo(index, true);
+        const backwards = event.key === 'ArrowLeft';
+        if (track.contains(document.activeElement)) {
+          (backwards ? previous : next).focus({ preventScroll: true });
+        }
+        goTo(active + (backwards ? -1 : 1));
       }, { signal });
-      rotation.addEventListener('click', () => { rotating = !rotating; updateRotation(); }, { signal });
-      motion.addEventListener('change', () => { rotating = !motion.matches; updateRotation(); }, { signal });
-      this.addEventListener('pointerenter', event => { if (event.pointerType === 'mouse') { hovering = true; schedule(); } }, { signal });
-      this.addEventListener('pointerleave', () => { hovering = false; schedule(); }, { signal });
-      this.addEventListener('focusin', schedule, { signal });
-      this.addEventListener('focusout', () => queueMicrotask(() => { if (!signal.aborted) schedule(); }), { signal });
-      document.addEventListener('visibilitychange', schedule, { signal });
       sync();
       controls.hidden = false;
-      updateRotation();
     }
 
     disconnectedCallback() {
       this.listeners?.abort();
-      window.clearTimeout(this.timer);
     }
   }
 
@@ -150,19 +122,40 @@ const slides: Slide[] = campaigns.length ? campaigns : previews.length ? preview
 </script>
 
 <style>
-  .home-carousel { display: block; position: relative; min-width: 0; background: var(--subtle); }
+  .home-carousel {
+    --campaign-fade-size: 116px;
+    display: block;
+    position: relative;
+    min-width: 0;
+    background: linear-gradient(
+      to bottom,
+      var(--primary) calc(100% - var(--campaign-fade-size)),
+      var(--campaign-fade-edge, var(--surface))
+    );
+  }
+  .home-campaign { color: var(--on-primary); }
+  .campaign-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr); align-items: center; gap: 48px; padding: 40px 44px 72px; }
+  .home-campaign.home-campaign-product h2 { max-width: 13ch; font-size: clamp(30px, 3.5vw, 50px); line-height: 1.12; letter-spacing: -.03em; font-weight: 650; text-wrap: balance; }
+  .home-campaign.home-campaign-product p { max-width: 38ch; margin: 18px 0 24px; font-size: 18px; line-height: 1.6; color: var(--on-primary); }
+  .home-campaign-product .home-campaign-cta { background: var(--surface); color: var(--deep); }
+  .home-campaign-product .home-campaign-cta:hover { background: var(--tint); }
+  .campaign-product-photo { width: 100%; height: 280px; object-fit: cover; }
+  .campaign-sponsored-photo { object-fit: contain; }
   .home-campaign-track { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; overscroll-behavior-x: contain; scrollbar-width: none; }
   .home-campaign { position: relative; display: grid; align-items: center; min-width: 0; flex: 0 0 100%; scroll-snap-align: start; }
   .home-campaign-image { min-height: clamp(160px, 26vw, 420px); }
   .home-campaign-image:has(.preview-photo) { min-height: clamp(210px, 25vw, 420px); }
   .home-campaign-copy { padding-block: 20px 58px; padding-inline: 44px; }
   .home-campaign h2 { font-size: clamp(1.25rem, 2vw, 1.75rem); line-height: 1.2; font-weight: 650; overflow-wrap: anywhere; }
-  .home-campaign p { margin: 5px 0 10px; color: var(--muted); overflow-wrap: anywhere; }
+  .home-campaign p { margin: 5px 0 10px; color: var(--on-primary); overflow-wrap: anywhere; }
   .home-campaign-cta { min-height: 44px; max-width: 100%; overflow-wrap: anywhere; }
   .home-campaign-cta svg { flex-shrink: 0; }
   .home-campaign-image-link, .home-campaign-photo { position: absolute; inset: 0; width: 100%; height: 100%; }
   .home-campaign-image-link:focus-visible { outline-offset: -4px; }
   .home-campaign-photo { object-fit: cover; }
+  .home-campaign-image-link .home-campaign-photo {
+    mask-image: linear-gradient(to bottom, #000 calc(100% - var(--campaign-fade-size)), transparent);
+  }
   .home-campaign-backdrop .home-campaign-photo { object-fit: cover; object-position: center; }
   .home-campaign-backdrop::after { content: ''; position: absolute; inset: 0; background: linear-gradient(90deg, #101e31f5, #101e31a6 60%, #101e3140); pointer-events: none; }
   .home-campaign-backdrop .home-campaign-copy { position: relative; z-index: 1; color: #fff; }
@@ -172,13 +165,13 @@ const slides: Slide[] = campaigns.length ? campaigns : previews.length ? preview
   .preview-photo { object-fit: cover; object-position: center top; }
   .home-campaign:has(.preview-photo-contained) { min-height: 0; }
   .preview-photo-contained { position: static; display: block; height: auto; aspect-ratio: 1536 / 399; object-fit: contain; }
-  .campaign-preview-label, .campaign-sponsored {
+  .campaign-sponsored {
     position: absolute;
     z-index: 1;
     top: 8px;
     inset-inline-end: clamp(10px, 2vw, 30px);
     padding: 3px 8px;
-    border-radius: 4px;
+    border-radius: var(--radius);
     background: #14243a;
     color: #fff;
     font-size: .75rem;
@@ -187,20 +180,23 @@ const slides: Slide[] = campaigns.length ? campaigns : previews.length ? preview
   .home-campaign:has(.campaign-sponsored) .home-campaign-copy { padding-top: 32px; }
   .home-campaign-controls { position: absolute; inset: 0; z-index: 2; pointer-events: none; }
   .home-campaign-controls button { display: grid; place-items: center; min-width: 44px; height: 44px; pointer-events: auto; }
-  .home-campaign-controls button:focus-visible { outline: 2px solid #174c91; outline-offset: -4px; }
-  .campaign-arrow, .home-campaign-picker { position: absolute; background: #fffffff2; color: #174c91; border-radius: 999px; box-shadow: 0 2px 10px #14243a26; }
+  .home-campaign-controls button:focus-visible { outline: 2px solid #14243a; outline-offset: -4px; }
+  .campaign-arrow { position: absolute; background: #ffffff70; color: #14243a; border-radius: var(--radius); }
   .home-campaign-controls .campaign-arrow { top: 50%; transform: translateY(-50%); width: 48px; height: 48px; }
   .campaign-arrow[data-step="-1"] { inset-inline-start: 14px; }
   .campaign-arrow[data-step="1"] { inset-inline-end: 14px; }
-  .home-campaign-picker { display: flex; align-items: center; bottom: 10px; left: 50%; transform: translateX(-50%); padding-inline-end: 6px; }
-  .home-campaign-picker button { border-radius: 999px; }
-  .home-campaign-controls button:hover { background: #e7effa; }
-  .campaign-rotation span { display: grid; place-items: center; }
-  .home-campaign-dots { display: flex; }
-  .home-campaign-dots button { min-width: 22px; }
-  .home-campaign-dots span { width: 7px; height: 7px; border: 1px solid currentColor; border-radius: 50%; }
-  .home-campaign-dots button[aria-current] span { background: currentColor; }
+  .home-campaign-controls button:hover,
+  .home-campaign-controls button:focus-visible { background: #ffffffb3; }
+  @media (max-width: 900px) {
+    .campaign-layout { gap: 24px; padding-inline: 36px; }
+    .campaign-product-photo { height: 240px; }
+  }
   @media (max-width: 600px) {
+    .campaign-layout { grid-template-columns: 1fr; gap: 24px; padding: 32px 0 76px; }
+    .home-campaign.home-campaign-product h2 { max-width: 18ch; }
+    .home-campaign.home-campaign-product p { font-size: 16px; margin: 12px 0 20px; }
+    .campaign-product-photo { height: 180px; }
+    .campaign-product-copy .button { min-height: 46px; }
     .home-campaign:has(.preview-photo-contained) { padding-bottom: 54px; background: #fff; }
     .home-campaign-image { min-height: 160px; }
     .home-campaign-image-link .home-campaign-photo { object-fit: contain; }
@@ -208,6 +204,5 @@ const slides: Slide[] = campaigns.length ? campaigns : previews.length ? preview
     .home-campaign-controls .campaign-arrow { top: auto; bottom: 10px; transform: none; width: 44px; height: 44px; }
     .campaign-arrow[data-step="-1"] { inset-inline-start: 6px; }
     .campaign-arrow[data-step="1"] { inset-inline-end: 6px; }
-    .home-campaign-dots button { min-width: 20px; }
   }
 </style>

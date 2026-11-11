@@ -101,10 +101,10 @@ const sponsored = form ? form.get('sponsored') === '1' : Boolean(current?.sponso
           }) : <div class="admin-fields">
             <label class="admin-field-wide">Título<input name="title" required maxlength="80" value={field('title')} /></label>
             <label class="admin-field-wide">Descripción<textarea name="description" required maxlength="180">{field('description')}</textarea></label>
-            <label>Texto de la acción<input name="label" required maxlength="34" value={field('label')} /></label>
+            <label>Texto de la acción<input name="label" required maxlength="34" value={field('label')} /><small>En publicidad se usa «Ver» seguido del título. Usá el nombre del producto como título.</small></label>
             <label>Orden<input name="position" type="number" min="1" max="99" required value={field('position', '1')} /></label>
             <label class="admin-field-wide">Enlace<input name="href" required maxlength="500" placeholder="/consulta o https://…" value={field('href')} /></label>
-            <label class="admin-field-wide">Imagen opcional <small>Recomendado 1920 × 500 px. JPG, PNG o WebP de hasta 4 MB. La imagen completa funciona como enlace.</small><input name="image" type="file" accept="image/jpeg,image/png,image/webp" /></label>
+            <label class="admin-field-wide">Imagen opcional <small>JPG, PNG o WebP de hasta 4 MB. Para publicidad, subí una foto del producto. Las demás campañas con imagen usan el banner completo como enlace.</small><input name="image" type="file" accept="image/jpeg,image/png,image/webp" /></label>
             {current?.has_image && <div class="admin-field-wide home-current-image"><img src={`/campanas/${current.id}.webp`} alt="Imagen actual" /><label class="home-check"><input type="checkbox" name="remove-image" value="1" /> Quitar imagen</label></div>}
             <label class="admin-field-wide home-check"><input type="checkbox" name="active" value="1" checked={active} /> Mostrar campaña en la portada</label>
             <label class="admin-field-wide home-check"><input type="checkbox" name="sponsored" value="1" checked={sponsored} /> Marcar como publicidad</label>

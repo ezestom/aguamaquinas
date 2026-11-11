@@ -1,9 +1,17 @@
-import equipos from '../assets/campaign-previews/banner-01.png?url';
-import accesorios from '../assets/campaign-previews/banner-02.png?url';
-import sacatapas from '../assets/campaign-previews/banner-03.png?url';
-
 export default [
-  { title: 'Equipos para tu planta', photo: equipos, fit: 'contain' },
-  { title: 'Accesorios para tu línea', photo: accesorios, fit: 'contain' },
-  { title: 'Sacatapas manual', photo: sacatapas, fit: 'contain' },
+  {
+    title: 'Equipos para tu planta',
+    description: 'Maquinaria para agua y soda. Encontrá el equipo que necesitás para tu línea de envasado.',
+    label: 'Ver equipos', href: '#catalogo', productPhoto: '/equipos/linea.webp',
+  },
+  {
+    title: 'Accesorios para tu línea',
+    description: 'Encontrá componentes para tus equipos de envasado.',
+    label: 'Ver accesorios', href: '/?categoria=otros#catalogo', productPhoto: '/equipos/filtros.webp',
+  },
+  {
+    title: 'Vendé tu maquinaria',
+    description: 'Publicá tu equipo para que lo encuentren compradores del sector.',
+    label: 'Publicar gratis', href: '/publicar', productPhoto: '/equipos/lavadora.webp',
+  },
 ];

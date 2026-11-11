@@ -11,33 +11,34 @@ const href = `/equipos/${machine.ref}${query ? `?${query}` : ''}`;
 <article class:list={['machine-card', compact && 'machine-card-compact']}>
   <a href={href} class="card-image" tabindex="-1" aria-hidden="true">
     <img src={photo} alt="" width="540" height="360" loading={priority ? 'eager' : 'lazy'} decoding="async" />
-    {!compact && <span class:list={['tag', `tag-${machine.condition}`]}>{conditions[machine.condition]}</span>}
   </a>
   <div class="card-body">
-    {badge && <p class="card-promotion">{badge}</p>}
-    <div class="card-meta"><span>{categories[machine.category]}<span class="visually-hidden"> · {conditions[machine.condition]}</span></span>{!compact && <span>{machine.ref}</span>}</div>
+    <div class="card-meta"><span>{categories[machine.category]}{compact && <span class="visually-hidden"> · {conditions[machine.condition]}</span>}</span></div>
     <h3><a href={href}>{machine.title}</a></h3>
+    <p class="card-status">{!compact && <span>{conditions[machine.condition]}</span>}{badge && <span class:list={['card-promotion', promotion && 'is-promoted']}>{badge}</span>}</p>
     {!compact && <p class="card-location"><Icon name="pin" size={16} />{machine.province}</p>}
     {!compact && <div class="card-specs">
       <div><small>Capacidad</small><strong>{machine.capacity || 'A confirmar'}</strong></div>
       <div><small>Formato</small><strong>{machine.format_detail || (machine.format === 'otros' ? '—' : formats[machine.format])}</strong></div>
     </div>}
-    <div class="card-bottom"><strong>{machine.reference ? 'Sin precio publicado' : priceLabel(machine)}</strong>{compact ? <Icon name="arrow" size={16} /> : <a href={href} aria-label={`Ver ficha de ${machine.title}`}>Ver ficha <Icon name="arrow" size={16} /></a>}</div>
+    <div class="card-bottom"><strong class:list={[machine.reference && 'price-unlisted']}>{machine.reference ? 'Sin precio publicado' : priceLabel(machine)}</strong>{compact ? <Icon name="arrow" size={16} /> : <a href={href} aria-label={`Ver ficha de ${machine.title}`}>Ver ficha <Icon name="arrow" size={16} /></a>}</div>
   </div>
 </article>
 
 <style>
-  .machine-card:has(.card-promotion) { position: relative; }
-  .card-promotion { position: absolute; top: 11px; right: 11px; z-index: 1; padding: 3px 7px; border-radius: 5px; color: var(--deep); background: var(--tint); font-size: .75rem; font-weight: 700; pointer-events: none; }
+  .card-status { display: flex; flex-wrap: wrap; gap: 6px 12px; margin-bottom: 8px; font-size: .875rem; color: var(--muted); }
+  .card-status:empty { display: none; }
+  .card-promotion.is-promoted { color: var(--deep); font-weight: 600; }
+  .card-bottom .price-unlisted { font-size: .875rem; font-weight: 450; color: var(--muted); }
   .machine-card-compact { position: relative; scroll-snap-align: start; }
   .machine-card-compact .card-image { aspect-ratio: 2; }
-  .machine-card-compact .card-body { padding: 10px 12px 12px; }
-  .machine-card-compact .card-meta { font-size: .75rem; text-transform: none; letter-spacing: 0; font-weight: 500; }
-  .machine-card-compact h3 { font-size: .9375rem; line-height: 1.3; letter-spacing: -.01em; font-weight: 630; overflow-wrap: anywhere; }
+  .machine-card-compact .card-body { padding: 14px 14px 12px; }
+  .machine-card-compact .card-meta { font-size: .875rem; }
+  .machine-card-compact h3 { font-size: 1rem; line-height: 1.4; letter-spacing: -.01em; font-weight: 600; overflow-wrap: anywhere; }
   .machine-card-compact h3 a::after { content: ''; position: absolute; inset: 0; }
-  .machine-card-compact:focus-within { outline: 2px solid var(--primary); outline-offset: -2px; }
+  .machine-card-compact:has(h3 a:focus-visible) { outline: 2px solid var(--muted); outline-offset: -2px; }
+  .machine-card-compact h3 a:focus-visible { outline: none; text-decoration: underline; }
   .machine-card-compact .card-bottom { flex-wrap: nowrap; margin-top: auto; padding-top: 6px; color: var(--deep); }
-  .machine-card-compact .card-bottom strong { font-size: .8125rem; font-weight: 550; }
+  .machine-card-compact .card-bottom strong { font-size: .875rem; }
   .machine-card-compact .card-bottom svg { flex-shrink: 0; }
-  .machine-card-compact .card-promotion { top: 7px; right: 7px; font-weight: 600; }
 </style>

@@ -71,7 +71,8 @@ export function deleteCampaign(id) {
 }
 
 export function featuredListings() {
-  return db().prepare(`SELECT m.*, f.position AS featured_position, f.sponsored FROM home_featured f JOIN machines m ON m.ref = f.machine_ref
+  return db().prepare(`SELECT m.*, d.price_max, f.position AS featured_position, f.sponsored
+    FROM home_featured f JOIN machines m ON m.ref = f.machine_ref LEFT JOIN listing_details d ON d.machine_ref = m.ref
     WHERE m.status = 'published' AND m.sample = 0 ORDER BY f.position LIMIT ?`).all(featuredLimit);
 }
 

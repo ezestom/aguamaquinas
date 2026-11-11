@@ -1,15 +1,18 @@
 ---
 import Icon from './Icon.astro';
+import InquiryCriteria from './InquiryCriteria.astro';
 import { categories, conditions, formats, provinces, priceLabel } from '../lib/catalog.mjs';
 import { getPhotos } from '../lib/db.mjs';
 import { listingStatuses, recordRevision } from '../lib/listing-management.mjs';
+import { defaultInquirySource, inquirySources, inquiryStages, inquiryTimeframes, moneyInput, moneyLabel } from '../lib/inquiry-options.mjs';
 
 const { record, kind, operation, closeUrl, actionUrl, error, submitted, link } = Astro.props;
 const listing = kind === 'aviso';
 const name = listing ? record.title : record.name;
 const titles = { view: listing ? 'Detalle del aviso' : 'Detalle de la consulta', edit: listing ? 'Editar aviso' : 'Editar consulta',
   seller: 'Editar vendedor', delete: listing ? 'Eliminar aviso' : 'Eliminar consulta', restore: 'Restaurar registro',
-  published: 'Publicar aviso', paused: 'Pausar aviso', sold: 'Marcar como vendido' };
+  published: 'Publicar aviso', paused: 'Pausar aviso', sold: 'Marcar como vendido',
+  followup: 'Seguimiento de la consulta', confirm: 'Confirmar disponibilidad' };
 const notes = {
   delete: listing ? 'El aviso saldrá del catálogo y pasará a la papelera. Podés restaurarlo con sus fotos y contactos.'
     : 'La consulta pasará a la papelera. Podés recuperarla cuando lo necesites.',
@@ -17,12 +20,20 @@ const notes = {
   published: 'El equipo aparecerá en el catálogo público. Los datos de contacto siguen en el panel.',
   paused: 'El equipo dejará de aparecer en el catálogo hasta que lo vuelvas a publicar.',
   sold: 'El equipo se marcará como vendido y dejará de aparecer en el catálogo.',
+  confirm: 'Confirmá que el vendedor te indicó que la máquina sigue disponible.',
 };
 const value = (field: string) => submitted?.get(field) ?? record[field] ?? '';
 const equipment = [ ['title','Título',90], ['brand','Marca',60], ['model','Modelo',60], ['format_detail','Medida',70], ['capacity','Capacidad',60] ];
 const selects = [ ['category','Categoría',Object.entries(categories)], ['province','Provincia',provinces.map(province => [province, province])],
   ['condition','Estado del equipo',Object.entries(conditions)], ['format','Formato',Object.entries(formats)] ];
-const edit = operation === 'edit' || operation === 'seller';
+const edit = ['edit', 'seller', 'followup'].includes(operation);
+const legacyContact = !listing && Boolean(record.contact && !record.buyer_email && !record.buyer_whatsapp);
+const whatsapp = !listing && record.buyer_whatsapp?.startsWith('+') ? record.buyer_whatsapp.replace(/\D/g, '') : '';
+const sources = [...new Set([defaultInquirySource, ...Object.values(inquirySources), listing ? defaultInquirySource : record.origin])];
+const amountFields = [
+  ['sale_amount', 'Importe de venta'], ['commission_agreed', 'Comisión acordada'], ['commission_paid', 'Comisión cobrada'],
+];
+const formatDate = new Intl.DateTimeFormat('es-AR', { dateStyle: 'medium', timeZone: 'America/Argentina/Buenos_Aires' });
 ---
 <dialog open class:list={['admin-dialog', { 'admin-dialog-wide': edit || operation === 'view' }]} aria-labelledby="panel-dialog-title" data-panel-dialog>
   <div class="admin-dialog-head">
@@ -35,6 +46,8 @@ const edit = operation === 'edit' || operation === 'seller';
       {listing ? <>
         <dl>
           <div><dt>Publicación</dt><dd>{listingStatuses[record.status]}</dd></div><div><dt>Precio</dt><dd>{priceLabel(record)}</dd></div>
+          {record.status === 'published' && <div><dt>Última confirmación</dt><dd>{record.confirmed_at ? formatDate.format(record.confirmed_at * 1000) : 'Sin confirmar'}</dd></div>}
+          {record.status === 'published' && record.reminded_at && <div><dt>Recordatorio enviado</dt><dd>{formatDate.format(record.reminded_at * 1000)}</dd></div>}
           <div><dt>Equipo</dt><dd>{[categories[record.category], record.brand, record.model].filter(Boolean).join(' · ')}</dd></div>
           <div><dt>Formato y estado</dt><dd>{[formats[record.format], record.format_detail, record.capacity, conditions[record.condition]].filter(Boolean).join(' · ')}</dd></div>
           <div><dt>Vendedor</dt><dd>{record.seller || 'Sin nombre'} · <a href={link('seller', kind, record.ref)}>Editar contacto</a></dd></div>
@@ -46,16 +59,36 @@ const edit = operation === 'edit' || operation === 'seller';
         <div class="thumbs">{getPhotos(record).map((photo, index) => <a href={photo} target="_blank" rel="noopener noreferrer"><img src={photo} loading="lazy" alt={`Ver foto ${index + 1}`} /></a>)}</div>
         {record.video && <a href={record.video} target="_blank" rel="noopener noreferrer">Ver video</a>}
       </> : <>
-        <dl><div><dt>Contacto</dt><dd>{record.contact}</dd></div><div><dt>Origen</dt><dd>{record.origin}</dd></div></dl>
+        <dl>
+          {legacyContact ? <div><dt>Contacto</dt><dd>{record.contact}</dd></div> : <>
+            <div><dt>WhatsApp</dt><dd>{whatsapp ? <a href={`https://wa.me/${whatsapp}`} target="_blank" rel="noopener noreferrer">{record.buyer_whatsapp}</a> : record.buyer_whatsapp || '—'}</dd></div>
+            <div><dt>Correo electrónico</dt><dd>{record.buyer_email ? <a href={`mailto:${encodeURIComponent(record.buyer_email).replace('%40', '@')}`}>{record.buyer_email}</a> : '—'}</dd></div>
+          </>}
+          <div><dt>Origen</dt><dd>{record.origin}</dd></div>
+          <div><dt>Estado</dt><dd>{inquiryStages[record.stage]}</dd></div>
+          <div><dt>Localidad y provincia</dt><dd>{record.location || '—'}</dd></div>
+          <div><dt>Presupuesto</dt><dd>{record.budget || '—'}</dd></div>
+          <div><dt>Plazo</dt><dd>{inquiryTimeframes[record.timeframe] || '—'}</dd></div>
+          <div><dt>Tiempo de gestión</dt><dd>{record.minutes == null ? '—' : record.minutes + ' min'}</dd></div>
+          {record.sale_amount != null && <div><dt>Importe de venta</dt><dd>{moneyLabel(record.sale_amount, record.commission_currency)}</dd></div>}
+          {record.commission_agreed != null && <div><dt>Comisión acordada</dt><dd>{moneyLabel(record.commission_agreed, record.commission_currency)}</dd></div>}
+          <div><dt>Comisión cobrada</dt><dd>{moneyLabel(record.commission_paid, record.commission_currency)}</dd></div>
+          {record.closed_on && <div><dt>Fecha de cierre</dt><dd>{record.closed_on.split('-').reverse().join('/')}</dd></div>}
+          {record.paid_on && <div><dt>Fecha de cobro</dt><dd>{record.paid_on.split('-').reverse().join('/')}</dd></div>}
+        </dl>
         <p>{record.machine_title ?? (record.machine_ref || 'Pedido general')}</p>
-        <p class="admin-prewrap">{record.message}</p>
+        {record.message && <p class="admin-prewrap">{record.message}</p>}
+        {record.notes && <p class="admin-prewrap"><strong>Notas internas</strong><br />{record.notes}</p>}
         {record.sample === 0 && !record.listing_deleted_at && <a href={link('view', 'aviso', record.machine_ref)}>Ver contacto del vendedor</a>}
       </>}
     </div>
     <div class="admin-dialog-foot">
       {listing && record.status !== 'published' && record.verified_at && <a class="button button-primary" href={link('published', kind, record.ref)}>Publicar aviso</a>}
+      {listing && record.status === 'published' && <a class="button button-primary" href={link('confirm', kind, record.ref)}>Confirmar disponibilidad</a>}
       {listing && record.status === 'published' && <a class="button button-outline" href={link('paused', kind, record.ref)}>Pausar aviso</a>}
       {listing && record.status !== 'sold' && <a class="button button-outline" href={link('sold', kind, record.ref)}>Marcar como vendido</a>}
+      {!listing && <a class="button button-primary" href={link('followup', kind, record.id)}>Actualizar seguimiento</a>}
+      {!listing && <a class="button button-outline" href={link('edit', kind, record.id)}>Editar consulta</a>}
       <a class="button button-outline" href={closeUrl} autofocus>Cerrar</a>
     </div>
   </> : <form method="post" action={actionUrl} data-astro-reload class="form-stack admin-dialog-form">
@@ -66,7 +99,8 @@ const edit = operation === 'edit' || operation === 'seller';
       {operation === 'edit' && listing && <div class="admin-fields">
         {equipment.map(([field, label, limit]) => <label>{label}<input name={field} value={value(field)} maxlength={limit} required={field === 'title'} /></label>)}
         {selects.map(([field, label, options]) => <label>{label}<select name={field} required>{options.map(([key, title]) => <option value={key} selected={value(field) === key}>{title}</option>)}</select></label>)}
-        <label>Precio ({record.currency})<input name="price" type="number" min="1" max="99999999999" step="1" value={value('price')} /></label>
+        <label>Precio fijo o desde ({record.currency})<input name="price" type="number" min="1" max="99999999999" step="1" value={value('price')} /></label>
+        <label>Hasta ({record.currency}) <small>Solo para un rango</small><input name="price_max" type="number" min="1" max="99999999999" step="1" value={value('price_max')} /></label>
         <label class="admin-field-wide">Video de YouTube o Vimeo<input name="video" type="url" maxlength="300" value={value('video')} /></label>
         <label class="admin-field-wide">Descripción<textarea name="description" required maxlength="1600">{value('description')}</textarea></label>
       </div>}
@@ -80,8 +114,30 @@ const edit = operation === 'edit' || operation === 'seller';
       </div>}
       {operation === 'edit' && !listing && <div class="admin-fields">
         <label>Nombre<input name="name" maxlength="80" required value={value('name')} /></label>
-        <label>Contacto<input name="contact" maxlength="100" required value={value('contact')} /></label>
-        <label class="admin-field-wide">Mensaje<textarea name="message" maxlength="1200" required>{value('message')}</textarea></label>
+        {legacyContact ? <label>Contacto<input name="contact" maxlength="100" required value={value('contact')} /></label> : <>
+          <label>WhatsApp<input name="buyer_whatsapp" type="tel" maxlength="30" required value={value('buyer_whatsapp')} /></label>
+          <label>Correo electrónico<input name="buyer_email" type="email" maxlength="254" required value={value('buyer_email')} /></label>
+        </>}
+        <label class="admin-field-wide">Mensaje<textarea name="message" maxlength="1200" required={!record.machine_ref || Boolean(record.manual)}>{value('message')}</textarea></label>
+      </div>}
+      {operation === 'followup' && <div class="form-stack">
+        <fieldset><legend>Seguimiento</legend><div class="admin-fields">
+          <label>Estado<select name="stage" required>{Object.entries(inquiryStages).map(([id, label]) =>
+            <option value={id} selected={value('stage') === id}>{label}</option>)}</select></label>
+          <label>Origen<select name="origin" required>{sources.map(source =>
+            <option value={source} selected={value('origin') === source}>{source}</option>)}</select></label>
+          <InquiryCriteria value={value} />
+          <label>Tiempo total de gestión (minutos)<input name="minutes" type="number" min="0" max="99999" step="1" value={value('minutes')} /></label>
+          <label class="admin-field-wide">Notas internas<textarea name="notes" maxlength="2000" placeholder="Ej. condiciones acordadas, próxima llamada o motivo de pérdida.">{value('notes')}</textarea></label>
+        </div></fieldset>
+        <fieldset><legend>Cierre y comisión</legend><div class="admin-fields">
+          <label>Fecha de cierre <small>Al marcar Cerrada</small><input name="closed_on" type="date" value={value('closed_on')} /></label>
+          <label>Moneda<select name="commission_currency"><option value="">Sin definir</option>{['USD', 'ARS'].map(currency =>
+            <option value={currency} selected={value('commission_currency') === currency}>{currency}</option>)}</select></label>
+          {amountFields.map(([field, label]) => <label>{label}<input name={field} inputmode="decimal" maxlength="14"
+            value={submitted?.get(field) ?? moneyInput(record[field])} /></label>)}
+          <label>Fecha de cobro<input name="paid_on" type="date" value={value('paid_on')} /></label>
+        </div></fieldset>
       </div>}
       {!edit && <p>{notes[operation]}</p>}
     </div>

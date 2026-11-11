@@ -1,0 +1,10 @@
+---
+import { inquiryTimeframes } from '../lib/inquiry-options.mjs';
+const { value, publicForm = false } = Astro.props;
+---
+<label>Localidad y provincia{publicForm && <small>Opcional</small>}<input name="location" maxlength="100" placeholder="Ej. Rosario, Santa Fe" value={value('location')} /></label>
+<label>Presupuesto aproximado{publicForm && <small>Opcional</small>}<input name="budget" maxlength="80" placeholder="Ej. USD 8.000 a 10.000" value={value('budget')} /></label>
+<label>Plazo de compra{publicForm && <small>Opcional</small>}<select name="timeframe">
+  <option value="">Sin definir</option>
+  {Object.entries(inquiryTimeframes).map(([id, label]) => <option value={id} selected={value('timeframe') === id}>{label}</option>)}
+</select></label>

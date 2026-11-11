@@ -98,12 +98,12 @@ const awaitingCode = verification && !changing && !verification.verified_at;
   .verification-flow { max-width: 560px; }
   .verification-steps { display: flex; flex-wrap: wrap; gap: 10px 18px; margin: 0 0 16px; padding: 0; list-style: none; }
   .verification-steps li { display: inline-flex; align-items: center; gap: 7px; color: var(--muted); font-size: .875rem; font-weight: 650; }
-  .verification-steps span { display: grid; place-items: center; width: 26px; height: 26px; border: 1px solid var(--line); border-radius: 50%; background: var(--surface); }
+  .verification-steps span { display: grid; place-items: center; width: 26px; height: 26px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
   .verification-steps li[aria-current] { color: var(--deep); }
   .verification-steps li[aria-current] span { color: #fff; background: var(--primary); border-color: var(--primary); }
   .verification-card > .message { margin-bottom: 16px; }
   .verification-email { overflow-wrap: anywhere; }
-  .verification-recipient { display: flex; align-items: start; gap: 9px; padding: 12px; border-radius: 8px; background: var(--subtle); }
+  .verification-recipient { display: flex; align-items: start; gap: 9px; padding: 12px; border-radius: var(--radius); background: var(--subtle); }
   .verification-recipient svg { flex: none; margin-top: 3px; color: var(--primary); }
   .verification-recipient small { display: block; color: var(--muted); }
   .form-stack .verification-code {

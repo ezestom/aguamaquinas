@@ -27,12 +27,24 @@ Desde el panel podés descargar el CSV privado, que usa punto y coma como separa
 
 La planilla del panel muestra los avisos, sus vendedores y las consultas. Al eliminar un registro, se mueve a la papelera. Restaurar un aviso recupera su estado anterior, sus fotos y sus datos de contacto.
 
+En **Consultas web** entran los pedidos que completan los compradores. Si consultan desde una ficha, se guarda el equipo junto con el WhatsApp y el correo del comprador. El mensaje es opcional para un equipo seleccionado. El aviso por correo se envía a `AGUA_NOTIFICATION_EMAIL` con la referencia y los datos de la consulta. Si el proveedor no responde, la consulta queda guardada y la alerta se puede reintentar desde el panel.
+
+En **Consultas web → Registro manual** podés cargar pedidos de WhatsApp, teléfono o referidos. En **Seguimiento** podés calificar el pedido, registrar la presentación y la visita, anotar minutos de gestión y cargar el cierre, la comisión acordada y lo efectivamente cobrado. Los importes de una operación usan la moneda que elijas para esa operación. **Exportar consultas** incluye el canal seleccionado, los contactos, el origen, los días hasta el cierre y los datos de comisión.
+
+Para medir el piloto, usá `/?origen=sitio-anterior` en los enlaces desde la web anterior y `/?origen=pedro` en los enlaces que Pedro comparta. El origen acompaña la navegación desde el catálogo hasta la consulta. Revisalo en el panel cuando el comprador indique cómo llegó.
+
 En **Gestionar portada** podés editar los banners y asignar hasta cinco avisos publicados a la sección de destacados. Marcá **Patrocinado** cuando corresponda a un acuerdo comercial. Los avisos pausados, vendidos o en la papelera salen de los destacados. Para los banners, cargá una imagen horizontal y elegí el orden, el destino y si querés mostrar la campaña.
+
+## Recordatorios de disponibilidad
+
+Al publicar, se registra la fecha de confirmación. A los 30 días, los avisos que sigan publicados y tengan correo verificado pueden recibir un recordatorio. El vendedor puede confirmar que el equipo sigue disponible o marcarlo como vendido desde el enlace del correo. También podés confirmar desde el panel. Los avisos que esperan respuesta siguen visibles y se señalan como **Por reconfirmar** en el panel.
+
+Para automatizar el envío, configurá `AGUA_PUBLIC_URL` con el origen HTTPS del sitio y `AGUA_REMINDER_KEY` con una clave aleatoria guardada en el hosting y el programador. Usá las mismas variables de Resend del sitio. Programá cada hora una solicitud `POST` a `/api/recordatorios`, con el encabezado `Authorization: Bearer <clave>`. Cada ejecución procesa hasta 10 avisos y devuelve los conteos de envíos y fallos. Ante un fallo, el aviso puede reintentarse en una ejecución posterior.
 
 ## Probar los recorridos
 
 - Buscá por título, marca o referencia de un aviso publicado. Elegí una categoría y filtrá por provincia, formato o estado.
-- Abrí una ficha y enviá una consulta con datos de prueba. El panel muestra la referencia y el origen. El enlace `/?origen=alloatti` marca una consulta derivada de Alloatti.
+- Abrí una ficha y enviá una consulta con datos de prueba. El panel muestra la referencia y el origen. El enlace `/?origen=sitio-anterior` marca una consulta derivada del sitio anterior.
 - Enviá un aviso con 1 a 5 imágenes JPG, PNG o WebP de hasta 3 MB cada una y, si querés, un enlace de YouTube o Vimeo. Las fotos se guardan comprimidas fuera de SQLite. El aviso entra como pendiente. En el panel se puede aprobar, pausar o marcar como vendido.
 
 ## Compilar y guardar los datos

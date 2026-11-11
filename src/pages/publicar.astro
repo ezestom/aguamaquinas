@@ -73,10 +73,14 @@ const value = (field) => text(form, field, 1600);
             <label>Enlace de video <small>Opcional · YouTube o Vimeo</small><input type="url" name="video" maxlength="300" placeholder="https://www.youtube.com/watch?v=…" value={value('video')} /></label>
           </fieldset>
           <fieldset><legend>3. Precio</legend>
-            <label>Precio en dólares (USD) <small>Dejalo vacío si preferís «Consultar precio».</small><input name="price" type="number" min="1" max="99999999999" step="1" placeholder="Ej. 12500" value={value('price')} /></label>
+            <p class="field-hint">Ingresá un precio fijo o un rango en dólares. Si dejás ambos campos vacíos, la ficha mostrará «Consultar precio».</p>
+            <div class="field-grid">
+              <label>Precio fijo o desde (USD)<input name="price" type="number" min="1" max="99999999999" step="1" placeholder="Ej. 12500" value={value('price')} /></label>
+              <label>Hasta (USD) <small>Solo para un rango</small><input name="price_max" type="number" min="1" max="99999999999" step="1" placeholder="Ej. 15000" value={value('price_max')} /></label>
+            </div>
           </fieldset>
           <fieldset><legend>4. Contacto para la gestión del aviso</legend>
-            <p class="field-hint">Usamos estos datos para revisar el aviso y contactarte si alguien consulta por el equipo. Solo se ven en el panel de gestión.</p>
+            <p class="field-hint">Usamos estos datos para revisar el aviso, gestionar consultas y pedirte que confirmes la disponibilidad del equipo. Solo se ven en el panel de gestión.</p>
             <div class="field-grid">
               <label>Nombre y apellido<input name="seller" required maxlength="80" autocomplete="name" value={value('seller')} /></label>
               <label>WhatsApp o teléfono <small>Incluí el código de país.</small><input name="phone" type="tel" required maxlength="30" autocomplete="tel" placeholder="Ej. +54 9 …" value={value('phone')} /></label>
@@ -93,6 +97,8 @@ const value = (field) => text(form, field, 1600);
     </div>
   </div>
   <script>
+    import { priceLabel } from '../lib/catalog.mjs';
+
     document.addEventListener('astro:page-load', () => {
       const input = document.querySelector<HTMLInputElement>('#photos');
       const thumbs = document.querySelector('#photos-preview');
@@ -168,8 +174,7 @@ const value = (field) => text(form, field, 1600);
       button.addEventListener('click', () => {
         const fields = new FormData(form);
         preview.querySelector('strong')!.textContent = String(fields.get('title') || 'Título del equipo');
-        const price = Number(fields.get('price'));
-        const amount = price > 0 ? new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(price) : 'Consultar precio';
+        const amount = priceLabel({ price: Number(fields.get('price')), price_max: Number(fields.get('price_max')), currency: 'USD' });
         preview.querySelector('[data-summary]')!.textContent = [fields.get('province'), fields.get('capacity'), amount].filter(Boolean).join(' · ');
         preview.querySelector('[data-description]')!.textContent = String(fields.get('description') || 'Agregá una descripción para completar el aviso.');
         preview.hidden = false;
@@ -184,13 +189,13 @@ const value = (field) => text(form, field, 1600);
   .listing-verified svg { flex: none; margin-top: 3px; }
   .photo-drop-hint { margin-block: 3px; }
   #photos-preview :global(.photo-thumb) { position: relative; }
-  #photos-preview :global(img) { display: block; width: 96px; height: 76px; border-radius: 8px; }
+  #photos-preview :global(img) { display: block; width: 96px; height: 76px; border-radius: var(--radius); }
   #photos-preview :global(button) {
     position: absolute;
     inset: 3px 3px auto auto;
     width: 34px;
     height: 34px;
-    border-radius: 50%;
+    border-radius: var(--radius);
     color: #fff;
     background: #14243a;
     font-size: 1.25rem;

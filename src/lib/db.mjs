@@ -24,9 +24,19 @@ export function db() {
     );
     CREATE TABLE IF NOT EXISTS inquiries (
       id INTEGER PRIMARY KEY, machine_ref TEXT NOT NULL, name TEXT NOT NULL, contact TEXT NOT NULL,
-      message TEXT NOT NULL, origin TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      message TEXT NOT NULL, origin TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      buyer_email TEXT NOT NULL DEFAULT '', buyer_whatsapp TEXT NOT NULL DEFAULT '',
+      machine_title_at_submission TEXT NOT NULL DEFAULT ''
     );
     CREATE INDEX IF NOT EXISTS inquiries_created_at ON inquiries(created_at);
+    CREATE TABLE IF NOT EXISTS inquiry_followups (
+      inquiry_id INTEGER PRIMARY KEY REFERENCES inquiries(id),
+      location TEXT NOT NULL DEFAULT '', budget TEXT NOT NULL DEFAULT '', timeframe TEXT NOT NULL DEFAULT '',
+      stage TEXT NOT NULL DEFAULT 'new', minutes INTEGER, notes TEXT NOT NULL DEFAULT '',
+      commission_currency TEXT NOT NULL DEFAULT '', sale_amount INTEGER, commission_agreed INTEGER,
+      commission_paid INTEGER, closed_on TEXT NOT NULL DEFAULT '', paid_on TEXT NOT NULL DEFAULT '',
+      manual INTEGER NOT NULL DEFAULT 0
+    );
     CREATE TABLE IF NOT EXISTS admin_sessions (
       token_hash TEXT PRIMARY KEY, expires_at INTEGER NOT NULL
     );
@@ -39,6 +49,10 @@ export function db() {
     CREATE TABLE IF NOT EXISTS listing_contacts (
       machine_ref TEXT PRIMARY KEY, email TEXT NOT NULL, phone TEXT NOT NULL,
       address TEXT NOT NULL, locality TEXT NOT NULL, verified_at INTEGER NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS listing_details (
+      machine_ref TEXT PRIMARY KEY REFERENCES machines(ref),
+      price_max INTEGER, confirmed_at INTEGER, reminder_attempted_at INTEGER, reminded_at INTEGER
     );
     CREATE TABLE IF NOT EXISTS notification_outbox (event TEXT PRIMARY KEY, sent_at INTEGER);
     CREATE TABLE IF NOT EXISTS panel_trash (
@@ -56,12 +70,19 @@ export function db() {
       sponsored INTEGER NOT NULL CHECK(sponsored IN (0, 1))
     );
   `);
-  const hasSponsoredCampaigns = () => connection.prepare("SELECT 1 FROM pragma_table_info('home_campaigns') WHERE name = 'sponsored'").get();
-  if (!hasSponsoredCampaigns()) {
+  const columns = [
+    ['home_campaigns', 'sponsored', 'INTEGER NOT NULL DEFAULT 0 CHECK(sponsored IN (0, 1))'],
+    ['inquiry_followups', 'manual', 'INTEGER NOT NULL DEFAULT 0'],
+    ['inquiries', 'buyer_email', "TEXT NOT NULL DEFAULT ''"],
+    ['inquiries', 'buyer_whatsapp', "TEXT NOT NULL DEFAULT ''"],
+    ['inquiries', 'machine_title_at_submission', "TEXT NOT NULL DEFAULT ''"],
+  ];
+  const hasColumn = connection.prepare('SELECT 1 FROM pragma_table_info(?) WHERE name = ?');
+  if (columns.some(([table, column]) => !hasColumn.get(table, column))) {
     connection.exec('BEGIN IMMEDIATE');
     try {
-      if (!hasSponsoredCampaigns()) {
-        connection.exec('ALTER TABLE home_campaigns ADD COLUMN sponsored INTEGER NOT NULL DEFAULT 0 CHECK(sponsored IN (0, 1))');
+      for (const [table, column, definition] of columns) {
+        if (!hasColumn.get(table, column)) connection.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
       }
       connection.exec('COMMIT');
     } catch (error) {

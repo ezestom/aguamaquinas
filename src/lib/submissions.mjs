@@ -5,6 +5,8 @@ import { resolve } from 'node:path';
 import { categories, conditions, formats, provinces, videoLink } from './catalog.mjs';
 import { dataDir, db } from './db.mjs';
 import { consumeListingVerification, listingVerification } from './listing-verification.mjs';
+import { defaultInquirySource, inquirySource, inquirySources, inquiryTimeframes, validBuyerEmail, validBuyerWhatsApp } from './inquiry-options.mjs';
+import { findPublicEquipment } from './public-equipment.mjs';
 
 export const maxPhotoSize = 3 * 1024 * 1024;
 export const text = (form, field, max) => {
@@ -24,6 +26,18 @@ export class UploadLimitError extends FormError {
     super(message, status);
     this.retryAfter = retryAfter;
   }
+}
+
+export function listingPrices(form) {
+  const price = text(form, 'price', 32);
+  const upper = text(form, 'price_max', 32);
+  if ([price, upper].some(value => value && !/^[1-9]\d{0,10}$/.test(value))) {
+    throw new FormError('Ingresá importes enteros mayores a cero.');
+  }
+  if (upper && (!price || Number(upper) <= Number(price))) {
+    throw new FormError('Para publicar un rango, el máximo tiene que ser mayor que el precio inicial.');
+  }
+  return [price ? Number(price) : null, upper ? Number(upper) : null];
 }
 
 const uploadWindowSeconds = 600;
@@ -82,7 +96,7 @@ export async function submitMachine(form, token) {
   const locality = text(form, 'locality', 80);
   const address = text(form, 'address', 160);
   const description = text(form, 'description', 1600);
-  const amount = text(form, 'price', 14);
+  const [amount, upper] = listingPrices(form);
   const video = videoLink(text(form, 'video', 300));
 
   if (!title || !Object.hasOwn(categories, category) || !provinces.includes(province) ||
@@ -91,9 +105,6 @@ export async function submitMachine(form, token) {
   }
   if (!/^\+[1-9]\d{7,14}$/.test(phone)) {
     throw new FormError('Ingresá tu WhatsApp o teléfono con código de país.');
-  }
-  if (amount && !/^[1-9]\d{0,10}$/.test(amount)) {
-    throw new FormError('Ingresá el precio en dólares como número entero, o dejalo vacío para que se consulte.');
   }
   if (video === null) throw new FormError('Ingresá un enlace de video de YouTube o Vimeo.');
 
@@ -136,11 +147,12 @@ export async function submitMachine(form, token) {
     connection.prepare(`INSERT INTO machines (ref,title,category,brand,model,province,format,format_detail,capacity,condition,
       price,currency,photos,description,video,contact,seller) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(
       ref, title, category, text(form, 'brand', 60), text(form, 'model', 60), province, format, text(form, 'format_detail', 70),
-      text(form, 'capacity', 60), condition, amount ? Number(amount) : null, 'USD',
+      text(form, 'capacity', 60), condition, amount, 'USD',
       JSON.stringify(written.map(filename => `/media/${filename}`)), description, video, '', seller,
     );
     connection.prepare('INSERT INTO listing_contacts VALUES (?, ?, ?, ?, ?, ?)')
       .run(ref, verified.email, phone, address, locality, verified.verified_at);
+    connection.prepare('INSERT INTO listing_details (machine_ref, price_max) VALUES (?, ?)').run(ref, upper);
     connection.prepare('INSERT INTO notification_outbox (event) VALUES (?)').run(`aviso/${ref}`);
     connection.exec('COMMIT');
     return ref;
@@ -154,20 +166,45 @@ export async function submitMachine(form, token) {
   }
 }
 
-export function submitInquiry(form, ref, origin) {
+export function submitInquiry(form, ref, origin, manual = false) {
   const name = text(form, 'name', 80);
-  const contact = text(form, 'contact', 100);
+  const contact = manual ? text(form, 'contact', 100) : '';
+  const email = manual ? '' : text(form, 'email', 254);
+  const whatsapp = manual ? '' : text(form, 'whatsapp', 30);
   const message = text(form, 'message', 1200);
-  if (!name || !contact || !message) throw new FormError('Completá tu nombre, un contacto y tu consulta.');
+  const timeframe = text(form, 'timeframe', 12);
+  if (!name) throw new FormError('Ingresá tu nombre.');
+  if (manual && !contact) throw new FormError('Ingresá un teléfono o correo.');
+  if (!manual && !validBuyerWhatsApp(whatsapp)) throw new FormError('Ingresá un número de WhatsApp válido.');
+  if (!manual && !validBuyerEmail(email)) throw new FormError('Ingresá un correo electrónico válido.');
+  if ((manual || !ref) && !message) throw new FormError('Contanos qué equipo estás buscando.');
+  if (timeframe && !Object.hasOwn(inquiryTimeframes, timeframe)) throw new FormError('Elegí un plazo de compra válido.');
   const connection = db();
   connection.exec('BEGIN IMMEDIATE');
   try {
-    const { count } = connection.prepare("SELECT count(*) AS count FROM inquiries WHERE created_at > datetime('now', '-10 minutes')").get();
-    if (count >= 20) throw new FormError('Hay muchas consultas en este momento. Probá de nuevo más tarde.', 429);
-    const { id } = connection.prepare('INSERT INTO inquiries (machine_ref, name, contact, message, origin) VALUES (?, ?, ?, ?, ?) RETURNING id')
-      .get(ref, name, contact, message, origin === 'alloatti' ? 'Alloatti' : 'Agua Máquinas');
+    if (!manual) {
+      const { count } = connection.prepare(`SELECT count(*) AS count FROM inquiries i
+        LEFT JOIN inquiry_followups f ON f.inquiry_id = i.id
+        WHERE i.created_at > datetime('now', '-10 minutes') AND coalesce(f.manual, 0) = 0`).get();
+      if (count >= 20) throw new FormError('Hay muchas consultas en este momento. Probá de nuevo más tarde.', 429);
+    }
+    let equipment;
+    if (ref) {
+      equipment = manual ? connection.prepare(`SELECT title FROM machines WHERE ref = ? AND sample = 0
+        AND NOT EXISTS (SELECT 1 FROM panel_trash WHERE kind = 'aviso' AND record_key = machines.ref)`).get(ref)
+        : findPublicEquipment(ref, connection);
+      if (!equipment) throw new FormError(manual ? 'La referencia no corresponde a un aviso del panel.' : 'Este equipo ya no está disponible.', manual ? 400 : 404);
+    }
+    const { id } = connection.prepare(`INSERT INTO inquiries
+      (machine_ref, name, contact, message, origin, buyer_email, buyer_whatsapp, machine_title_at_submission)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`).get(
+      ref, name, contact, message, inquirySources[inquirySource(origin)] ?? defaultInquirySource,
+      email, whatsapp, equipment?.title ?? '',
+    );
+    connection.prepare('INSERT INTO inquiry_followups (inquiry_id, location, budget, timeframe, manual) VALUES (?, ?, ?, ?, ?)')
+      .run(id, text(form, 'location', 100), text(form, 'budget', 80), timeframe, Number(manual));
     const event = `consulta/${ref || 'general'}/${id}`;
-    connection.prepare('INSERT INTO notification_outbox (event) VALUES (?)').run(event);
+    if (!manual) connection.prepare('INSERT INTO notification_outbox (event) VALUES (?)').run(event);
     connection.exec('COMMIT');
     return event;
   } catch (error) {

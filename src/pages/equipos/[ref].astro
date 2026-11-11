@@ -3,17 +3,18 @@ import Layout from '../../layouts/Layout.astro';
 import Icon from '../../components/Icon.astro';
 import ProductGallery from '../../components/ProductGallery.astro';
 import { categories, conditions, formats, priceLabel } from '../../lib/catalog.mjs';
-import { db, getPhotos } from '../../lib/db.mjs';
-import { referenceEquipment } from '../../lib/reference-equipment.mjs';
-const machine = db().prepare("SELECT * FROM machines WHERE ref = ? AND status = 'published' AND sample = 0").get(Astro.params.ref)
-  ?? referenceEquipment.find(item => item.ref === Astro.params.ref);
+import { getPhotos } from '../../lib/db.mjs';
+import { findPublicEquipment } from '../../lib/public-equipment.mjs';
+import { inquirySource } from '../../lib/inquiry-options.mjs';
+const machine = findPublicEquipment(Astro.params.ref);
 if (!machine) Astro.response.status = 404;
 const photos = machine ? getPhotos(machine) : [];
 const returnQuery = new URLSearchParams(Astro.url.searchParams);
 const back = `/${returnQuery.size ? `?${returnQuery}` : ''}`;
 const inquiry = new URLSearchParams();
-if (machine && !machine.reference) inquiry.set('equipo', machine.ref);
-if (returnQuery.get('origen') === 'alloatti') inquiry.set('origen', 'alloatti');
+if (machine) inquiry.set('equipo', machine.ref);
+const origin = inquirySource(returnQuery.get('origen'));
+if (origin) inquiry.set('origen', origin);
 ---
 <Layout title={machine?.title ?? 'Equipo no disponible'} page="ficha" noindex={!machine || Boolean(machine.reference)}>
   <div class="wrap interior">
@@ -33,11 +34,11 @@ if (returnQuery.get('origen') === 'alloatti') inquiry.set('origen', 'alloatti');
         </dl>
         {machine.reference ? <p class="detail-price">Equipo de referencia</p> : <p class="detail-price">{priceLabel(machine)}</p>}
         <div class="detail-actions">
-          <a class="button button-primary" href={`/consulta${inquiry.size ? `?${inquiry}` : ''}`}>{machine.reference ? 'Pedir un equipo similar' : 'Consultar por esta máquina'} <Icon name="arrow" size={18} /></a>
+          <a class="button button-primary" href={`/consulta?${inquiry}`}>{machine.reference ? 'Consultar por este modelo' : 'Pedir información de este equipo'} <Icon name="arrow" size={18} /></a>
           {machine.video && <a class="button button-outline" href={machine.video} target="_blank" rel="noopener noreferrer"><Icon name="play" size={17} /> Ver video <Icon name="external" size={14} /></a>}
         </div>
         <div class="detail-desc"><h2>Sobre el equipo</h2><p>{machine.description}</p></div>
       </section>
-    </div> : <div class="empty"><h1>Equipo no disponible</h1><p>Podés buscar otro equipo o dejarnos un pedido.</p><a class="button button-primary" href="/consulta">Pedir un equipo</a></div>}
+    </div> : <div class="empty"><h1>Equipo no disponible</h1><p>Podés buscar otro equipo o dejarnos un pedido.</p><a class="button button-primary" href={'/consulta' + (inquiry.size ? '?' + inquiry : '')}>Pedir un equipo</a></div>}
   </div>
 </Layout>

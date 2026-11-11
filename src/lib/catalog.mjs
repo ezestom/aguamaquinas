@@ -25,7 +25,11 @@ export function matches(machine, params) {
 }
 
 export function priceLabel(machine) {
-  return machine.price ? `${machine.currency === 'USD' ? 'US$' : '$'} ${new Intl.NumberFormat('es-AR').format(machine.price)}` : 'Consultar precio';
+  if (!machine.price) return 'Consultar precio';
+  const currency = machine.currency === 'USD' ? 'US$' : '$';
+  const number = new Intl.NumberFormat('es-AR');
+  const range = machine.price_max > machine.price ? ' a ' + number.format(machine.price_max) : '';
+  return `${currency} ${number.format(machine.price)}${range}`;
 }
 
 export function videoLink(input) {

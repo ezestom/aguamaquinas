@@ -200,7 +200,7 @@ const slides = await Promise.all(photos.map(async (src) => {
     min-height: 44px;
     gap: 7px;
     padding: 0 12px;
-    border-radius: 8px;
+    border-radius: var(--radius);
   }
   .gallery-expand:hover, .gallery-arrow:hover:enabled { background: #142035; }
   .gallery-arrow {
@@ -208,7 +208,7 @@ const slides = await Promise.all(photos.map(async (src) => {
     width: 44px;
     height: 44px;
     border: 1px solid #ffffff40;
-    border-radius: 50%;
+    border-radius: var(--radius);
     translate: 0 -50%;
   }
   .gallery-arrow:disabled { opacity: .45; cursor: default; }
@@ -220,7 +220,7 @@ const slides = await Promise.all(photos.map(async (src) => {
     min-width: 52px;
     gap: .35em;
     padding: 4px 9px;
-    border-radius: 6px;
+    border-radius: var(--radius);
     pointer-events: none;
     font-variant-numeric: tabular-nums;
   }
@@ -235,11 +235,11 @@ const slides = await Promise.all(photos.map(async (src) => {
     min-width: 0;
     padding: 2px;
     border: 2px solid transparent;
-    border-radius: 8px;
+    border-radius: var(--radius);
   }
   .gallery-thumb:hover { background: var(--tint); }
   .gallery-thumb[aria-current='true'] { border-color: var(--primary); }
-  .gallery-thumb img { width: 100%; height: 44px; border-radius: 4px; object-fit: cover; background: var(--media-backdrop); }
+  .gallery-thumb img { width: 100%; height: 44px; border-radius: var(--radius); object-fit: cover; background: var(--media-backdrop); }
   .gallery-empty {
     display: grid;
     aspect-ratio: 3 / 2;

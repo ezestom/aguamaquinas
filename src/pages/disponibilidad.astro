@@ -1,0 +1,44 @@
+---
+import Layout from '../layouts/Layout.astro';
+import { listingFromAvailabilityLink, respondToAvailability } from '../lib/availability.mjs';
+
+Astro.response.headers.set('Cache-Control', 'private, no-store');
+Astro.response.headers.set('Referrer-Policy', 'no-referrer');
+const token = Astro.url.searchParams.get('aviso');
+const result = Astro.url.searchParams.get('resultado');
+const done = result === 'available' || result === 'sold';
+let listing = listingFromAvailabilityLink(token);
+let error = '';
+if (Astro.request.method === 'POST') {
+  const action = (await Astro.request.formData()).get('action');
+  if (respondToAvailability(token, action)) return Astro.redirect('/disponibilidad?resultado=' + action, 303);
+  listing = listingFromAvailabilityLink(token);
+  if (listing) {
+    Astro.response.status = 400;
+    error = 'Elegí si el equipo sigue disponible o ya se vendió.';
+  }
+}
+if (!done && !listing) Astro.response.status = 404;
+---
+<Layout title="Disponibilidad de tu equipo" page="disponibilidad">
+  <div class="wrap interior form-interior">
+    <header class="page-heading"><h1>{done ? 'Disponibilidad actualizada' : listing ? '¿Tu equipo sigue disponible?' : 'El enlace ya no está activo'}</h1>
+      {listing && <p>{listing.title} · {listing.ref}</p>}
+    </header>
+    <div class="form-card">
+      {done ? <>
+        <p class="message" role="status">{result === 'sold' ? 'El equipo se marcó como vendido y salió del catálogo.' : 'Gracias por confirmar que el equipo sigue disponible.'}</p>
+        <a class="button button-primary" href="/">Volver al catálogo</a>
+      </> : listing ? <form method="post" class="form-stack" data-astro-reload>
+        {error && <p class="message message-error" role="alert">{error}</p>}
+        <div class="detail-actions">
+          <button class="button button-primary" name="action" value="available">Sigue disponible</button>
+          <button class="button button-outline" name="action" value="sold">Ya se vendió</button>
+        </div>
+      </form> : <>
+        <p>Es posible que la disponibilidad ya se haya actualizado. Si recibiste otro correo, usá el enlace más reciente.</p>
+        <a class="button button-outline" href="/">Volver al catálogo</a>
+      </>}
+    </div>
+  </div>
+</Layout>

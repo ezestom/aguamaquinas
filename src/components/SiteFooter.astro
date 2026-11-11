@@ -1,14 +1,13 @@
 ---
-import Icon from "./Icon.astro";
 const { origin } = Astro.props;
-const tracking = "?utm_source=aguamaquinas&utm_medium=referido";
+const category = (name: string) => '/?' + new URLSearchParams({ ...Object.fromEntries(new URLSearchParams(origin)), categoria: name });
 const links = [
 	{
-		title: "Marketplace",
+		title: "Equipos",
 		items: [
 			["Inicio", "/" + origin],
-			["Ver lavadoras", "/?categoria=lavadoras"],
-			["Ver llenadoras", "/?categoria=llenadoras"],
+			["Ver lavadoras", category("lavadoras")],
+			["Ver llenadoras", category("llenadoras")],
 			["Publicá gratis", "/publicar"],
 		],
 	},
@@ -19,30 +18,13 @@ const links = [
 			["Panel de gestión", "/panel"],
 		],
 	},
-	{
-		title: "Equipos nuevos · Alloatti",
-		items: [
-			[
-				"Líneas de bidones retornables",
-				`https://www.alloatti.com/maquina-para-bidones-retornables${tracking}`,
-			],
-			[
-				"Líneas para descartables y PET",
-				`https://www.alloatti.com/maquina-para-bidones-descartables${tracking}`,
-			],
-			[
-				"Accesorios y automatización",
-				`https://www.alloatti.com/accesorios-para-maquinas${tracking}`,
-			],
-		],
-	},
 ];
 ---
 
 <footer class="site-footer">
 	<div class="wrap">
 		<div
-			class="footer-grid grid grid-cols-2 gap-x-5 gap-y-5 py-7 lg:grid-cols-[1.2fr_0.8fr_0.8fr_1fr] lg:gap-x-8 lg:py-8">
+			class="footer-grid grid grid-cols-2 gap-x-5 gap-y-5 py-7 lg:grid-cols-[2fr_1fr_1fr] lg:gap-x-8 lg:py-8">
 			<div class="footer-brand col-span-2 sm:col-span-1">
 				<a class="brand" href={"/" + origin}>
 					<img
@@ -57,17 +39,14 @@ const links = [
 				</a>
 			</div>
 			{
-				links.map((group, index) => (
-					<nav class:list={[index === links.length - 1 && 'col-span-2 sm:col-span-1']} aria-label={group.title}>
+				links.map((group) => (
+					<nav aria-label={group.title}>
 						<h2>{group.title}</h2>
 						<ul class="grid gap-1">
 							{group.items.map(([label, href]) => (
 								<li>
 									<a href={href}>
 										{label}
-										{href.startsWith("https:") && (
-											<Icon name="external" size={13} />
-										)}
 									</a>
 								</li>
 							))}

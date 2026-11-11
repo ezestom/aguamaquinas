@@ -4,19 +4,20 @@ import Icon from '../components/Icon.astro';
 import MachineCard from '../components/MachineCard.astro';
 import HomeCarousel from '../components/HomeCarousel.astro';
 import FeaturedShelf from '../components/FeaturedShelf.astro';
-import AlloattiCard from '../components/AlloattiCard.astro';
 import { categories, conditions, formats, matches, provinces } from '../lib/catalog.mjs';
 import { db } from '../lib/db.mjs';
 import { featuredLimit, featuredListings, homeCampaigns } from '../lib/home.mjs';
 import { referenceEquipment } from '../lib/reference-equipment.mjs';
+import { inquirySource } from '../lib/inquiry-options.mjs';
 
 const params = Astro.url.searchParams;
 const category = Object.hasOwn(categories, params.get('categoria')) ? params.get('categoria') : '';
-const origin = params.get('origen') === 'alloatti' ? 'alloatti' : '';
+const origin = inquirySource(params.get('origen'));
 const filters = new URLSearchParams();
-for (const key of ['q', 'provincia', 'formato', 'estado', 'origen']) {
+for (const key of ['q', 'provincia', 'formato', 'estado']) {
   if (params.get(key)) filters.set(key, params.get(key).slice(0, 120));
 }
+if (origin) filters.set('origen', origin);
 if (category) filters.set('categoria', category);
 const home = [...filters.keys()].every(key => key === 'origen');
 const assigned = featuredListings();
@@ -25,7 +26,8 @@ const featured = Array.from({ length: featuredLimit }, (_, index) =>
   assigned.find(machine => machine.featured_position === index + 1) ?? referenceSlots.shift()
 ).filter(Boolean);
 const featuredRefs = new Set(home ? featured.map(machine => machine.ref) : []);
-const published = db().prepare("SELECT * FROM machines WHERE status = 'published' AND sample = 0 ORDER BY id DESC")
+const published = db().prepare(`SELECT m.*, d.price_max FROM machines m LEFT JOIN listing_details d ON d.machine_ref = m.ref
+  WHERE m.status = 'published' AND m.sample = 0 ORDER BY m.id DESC`)
   .all().filter(machine => matches(machine, filters));
 const references = referenceEquipment.filter(machine => matches(machine, filters));
 const machines = [...published, ...references].filter(machine => !featuredRefs.has(machine.ref));
@@ -34,7 +36,7 @@ const referenceCount = references.length;
 const count = [publishedCount && `${publishedCount} ${publishedCount === 1 ? 'aviso publicado' : 'avisos publicados'}`,
   referenceCount && `${referenceCount} ${referenceCount === 1 ? 'equipo de referencia' : 'equipos de referencia'}`].filter(Boolean).join(' · ');
 const campaigns = homeCampaigns(true);
-const inquiryHref = origin ? '/consulta?origen=alloatti' : '/consulta';
+const inquiryHref = origin ? '/consulta?' + new URLSearchParams({ origen: origin }) : '/consulta';
 const categoryOrder = ['', 'lavadoras', 'llenadoras', 'lineas', 'soda', 'tanques', 'tratamiento'];
 categoryOrder.push(...Object.keys(categories).filter(key => !categoryOrder.includes(key)));
 const fallbackCount = 3;
@@ -51,20 +53,11 @@ if (filters.has('q')) reset.set('q', filters.get('q'));
 const filterCount = ['provincia', 'formato', 'estado'].filter(key => filters.has(key)).length;
 ---
 <Layout>
-  <div class="catalog-campaigns">
+  <div class="catalog-intro">
     <HomeCarousel campaigns={campaigns} inquiryHref={inquiryHref} />
+    {featured.length > 0 && <FeaturedShelf machines={featured} params={filters} />}
   </div>
-  {featured.length > 0 && <FeaturedShelf machines={featured} params={filters} />}
-  <div class="catalog-nav" id="explorar">
-    <div class="wrap">
-      <form class="search-form" action="/" role="search">
-        <div class="search-input"><Icon name="search" /><label class="visually-hidden" for="search">Buscar por equipo, marca o referencia</label><input id="search" name="q" type="search" maxlength="120" placeholder="Equipo, marca o referencia" value={filters.get('q') ?? ''} /></div>
-        {origin && <input type="hidden" name="origen" value={origin} />}
-        <button class="button button-primary" type="submit">Buscar</button>
-      </form>
-    </div>
-  </div>
-  <category-tabs class="category-band">
+  <category-tabs class="category-band" id="explorar">
     <nav class="wrap tabs" aria-label="Categorías de equipos">
       {categoryOrder.map((key, index) => <a class="category-tab" hidden={index >= fallbackCount} href={categoryUrl(key)} aria-current={currentTab(key)}>
         {key ? categories[key] : <><span class="tab-long">Todos los equipos</span><span class="tab-short">Todos</span></>}
@@ -78,9 +71,17 @@ const filterCount = ['provincia', 'formato', 'estado'].filter(key => filters.has
   <section class="wrap catalog" id="catalogo" aria-labelledby="catalog-title">
     <div class="catalog-heading">
       <div><h1 id="catalog-title">{category ? categories[category] : 'Catálogo de equipos'}</h1><p>{count || '0 equipos'}{filters.get('q') && ` para «${filters.get('q')}»`}</p></div>
-      <a href={inquiryHref} class="help-link">¿Buscás algo puntual? <Icon name="arrow" size={17} /></a>
+      <form class="catalog-search" action="/" role="search">
+        <label for="search">Buscar un equipo</label>
+        <div class="search-form">
+          <div class="search-input"><Icon name="search" /><input id="search" name="q" type="search" maxlength="120" placeholder="Equipo, marca o referencia" value={filters.get('q') ?? ''} /></div>
+          {['categoria', 'provincia', 'formato', 'estado', 'origen'].map(key => filters.has(key) && <input type="hidden" name={key} value={filters.get(key)} />)}
+          <button class="button button-primary" type="submit">Buscar</button>
+        </div>
+      </form>
     </div>
     <div class="catalog-columns">
+      <aside class="catalog-sidebar" aria-label="Filtros">
       <details class="filter-box" open={filterCount > 0}>
         <summary><Icon name="filters" size={19} /> Filtrar equipos {filterCount > 0 && <span class="filter-count">{filterCount}</span>}</summary>
         <form action="/" data-catalog-filters>
@@ -92,10 +93,10 @@ const filterCount = ['provincia', 'formato', 'estado'].filter(key => filters.has
           <button type="submit" class="button button-outline">Aplicar filtros</button>
         </form>
       </details>
+      </aside>
       <div class="catalog-results">
         {machines.length > 0 ? <div class="cards">{machines.map((machine, index) => <MachineCard machine={machine} params={filters} priority={!home && index < 3} />)}</div> : !count && <div class="empty"><Icon name="search" size={32} /><h2>No encontramos equipos con esa búsqueda</h2><p>Probá con otra palabra o contanos qué máquina necesitás.</p><a class="button button-primary" href={inquiryHref}>Pedir un equipo</a></div>}
       </div>
-      <div class="catalog-partner"><AlloattiCard /></div>
     </div>
   </section>
   <script>
@@ -127,12 +128,8 @@ const filterCount = ['provincia', 'formato', 'estado'].filter(key => filters.has
 </Layout>
 
 <style>
-  .catalog-campaigns { background: var(--surface); }
-  .catalog-results { min-width: 0; }
-  @media (min-width: 900px) {
-    .catalog-columns { grid-template-areas: 'filters results' 'partner results'; grid-template-rows: auto 1fr; }
-    .filter-box { grid-area: filters; }
-    .catalog-results { grid-area: results; }
-    .catalog-partner { grid-area: partner; }
+  .catalog-intro {
+    --campaign-fade-edge: color-mix(in srgb, var(--primary) 15%, var(--surface));
   }
+  .catalog-results { min-width: 0; }
 </style>

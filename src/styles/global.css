@@ -11,8 +11,6 @@
 
 @theme inline {
 	--font-sans: "Inter", "Segoe UI", system-ui, sans-serif;
-	--color-alloatti-blue: var(--primary);
-	--color-alloatti-deep: var(--deep);
 }
 
 :root {
@@ -46,8 +44,10 @@
 	--error-bg: #fcece9;
 	--error-border: #e5b8b2;
 	--error-ink: #7a281d;
-	--radius: 12px;
-	--nav-size: 14px;
+	--radius: 0px;
+	--shadow-card: 0 2px 10px #14243a12;
+	--shadow-hover: 0 6px 20px #14243a14;
+	--nav-size: 15px;
 	--nav-weight: 500;
 	--nav-active-weight: 670;
 }
@@ -115,6 +115,8 @@ select,
 summary {
 	cursor: pointer;
 }
+::selection { background: var(--tint); color: var(--deep); }
+input, textarea { caret-color: var(--primary); }
 button,
 a,
 summary,
@@ -199,21 +201,26 @@ p {
 }
 .top-nav {
 	display: flex;
-	gap: 4px;
+	gap: 8px;
 }
-.top-nav a {
+.top-nav a:not(.button) {
 	display: inline-flex;
 	align-items: center;
 	min-height: 44px;
 	text-decoration: none;
 	padding: 8px 13px;
-	border-radius: 8px;
+	border-radius: var(--radius);
 	color: var(--muted);
 	white-space: nowrap;
 	font-size: var(--nav-size);
 	font-weight: var(--nav-weight);
 }
-.top-nav a:hover,
+.top-nav .button {
+	min-height: 44px;
+	padding: 8px 13px;
+	font-size: var(--nav-size);
+}
+.top-nav a:not(.button):hover,
 .top-nav a[aria-current] {
 	color: var(--deep);
 	background: var(--tint);
@@ -242,7 +249,7 @@ p {
 	width: 44px;
 	height: 44px;
 	border: 1px solid var(--line);
-	border-radius: 8px;
+	border-radius: var(--radius);
 	background: var(--surface);
 	color: var(--deep);
 }
@@ -264,7 +271,7 @@ p {
 	gap: 8px;
 	min-height: 46px;
 	padding: 10px 17px;
-	border-radius: 8px;
+	border-radius: var(--radius);
 	border: 1px solid transparent;
 	font-weight: 700;
 	text-align: center;
@@ -296,13 +303,24 @@ p {
 	text-transform: uppercase;
 	letter-spacing: 0.085em;
 }
-.catalog-nav {
-	background: var(--surface);
-	padding: 18px 0 15px;
+.catalog-search {
+	width: min(360px, 100%);
+	flex: 0 1 360px;
+}
+.catalog-search > label {
+	display: block;
+	margin-bottom: 5px;
+	font-size: 14px;
+	font-weight: 550;
 }
 .search-form {
 	display: flex;
-	gap: 9px;
+	gap: 6px;
+}
+.search-form .button {
+	min-height: 44px;
+	padding: 6px 12px;
+	font-size: 14px;
 }
 .search-input {
 	display: flex;
@@ -314,16 +332,17 @@ p {
 }
 .search-input svg {
 	position: absolute;
-	left: 14px;
+	left: 10px;
+	width: 17px;
 	pointer-events: none;
 }
 .search-input input {
 	width: 100%;
-	padding: 11px 12px 11px 45px;
+	padding: 6px 9px 6px 34px;
 	border: 1px solid var(--field-border);
-	border-radius: 8px;
-	background: var(--field);
-	min-height: 46px;
+	border-radius: var(--radius);
+	background: var(--surface);
+	min-height: 44px;
 }
 input::placeholder,
 textarea::placeholder {
@@ -332,9 +351,8 @@ textarea::placeholder {
 }
 .category-band {
 	display: block;
-	background: var(--band);
-	border-top: 1px solid var(--line);
-	padding-top: 8px;
+	background: var(--surface);
+	padding-block-start: 8px;
 }
 .tabs {
 	display: flex;
@@ -354,7 +372,10 @@ textarea::placeholder {
 	justify-content: center;
 	min-height: 46px;
 	padding: 8px 13px;
-	border-radius: 15px 15px 0 0;
+	border: 1px solid var(--line);
+	border-bottom: 0;
+	border-radius: var(--radius);
+	background: var(--field);
 	color: var(--muted);
 	font-size: var(--nav-size);
 	font-weight: var(--nav-weight);
@@ -366,9 +387,11 @@ textarea::placeholder {
 }
 .category-tab[aria-current],
 .category-tab.selected {
-	background: var(--canvas);
+	background: var(--tint);
+	border-color: var(--field-border);
 	color: var(--deep);
 	font-weight: var(--nav-active-weight);
+	box-shadow: inset 0 -2px var(--primary);
 }
 .category-tab:focus-visible {
 	outline-offset: -4px;
@@ -378,6 +401,9 @@ textarea::placeholder {
 }
 .more-tabs {
 	margin-inline-start: auto;
+}
+.more-tabs[open] summary {
+	background: var(--tint);
 }
 .more-tabs summary {
 	list-style: none;
@@ -403,7 +429,7 @@ textarea::placeholder {
 	min-width: min(205px, 100%);
 	background: var(--surface);
 	border: 1px solid var(--line);
-	border-radius: 8px;
+	border-radius: var(--radius);
 	padding: 5px;
 	box-shadow: 0 8px 18px #102b3714;
 }
@@ -413,9 +439,9 @@ textarea::placeholder {
 .more-tabs a {
 	display: flex;
 	align-items: center;
-	min-height: 40px;
+	min-height: 44px;
 	padding: 7px 10px;
-	border-radius: 5px;
+	border-radius: var(--radius);
 	font-size: 14px;
 }
 .more-tabs a:hover,
@@ -424,46 +450,36 @@ textarea::placeholder {
 	color: var(--deep);
 }
 .catalog {
-	padding-block: 25px 52px;
+	padding-block: 36px 64px;
 }
 .catalog-heading {
 	display: flex;
 	align-items: end;
 	justify-content: space-between;
-	gap: 15px;
-	margin-bottom: 18px;
+	gap: 24px;
+	margin-bottom: 28px;
 }
 .catalog-heading h1 {
 	font-size: clamp(25px, 3vw, 34px);
 	line-height: 1.14;
-	letter-spacing: -0.04em;
-	font-weight: 730;
+	letter-spacing: -0.03em;
+	font-weight: 650;
 }
 .catalog-heading p {
 	color: var(--muted);
 	margin-top: 4px;
 	overflow-wrap: anywhere;
 }
-.help-link {
-	display: inline-flex;
-	align-items: center;
-	gap: 7px;
-	color: var(--deep);
-	font-weight: 700;
-	text-underline-offset: 3px;
-	padding-block: 8px;
-	flex-shrink: 0;
-}
 .catalog-columns {
 	display: grid;
 	grid-template-columns: minmax(0, 1fr);
 	align-items: start;
-	gap: 16px;
+	gap: 28px;
 }
+.catalog-sidebar { min-width: 0; }
 .filter-box {
-	border: 1px solid var(--line);
 	border-radius: var(--radius);
-	background: var(--surface);
+	background: transparent;
 }
 .filter-box summary {
 	display: flex;
@@ -472,7 +488,7 @@ textarea::placeholder {
 	list-style: none;
 	min-height: 44px;
 	padding: 8px 12px;
-	font-size: 14px;
+	font-size: 16px;
 	font-weight: 520;
 }
 .filter-box summary::after {
@@ -484,14 +500,14 @@ textarea::placeholder {
 	content: "−";
 }
 .filter-count {
-	border-radius: 100px;
+	border-radius: var(--radius);
 	background: var(--tint);
 	padding: 0 7px;
 }
 .filter-box form {
 	display: grid;
-	gap: 10px;
-	padding: 11px 12px 12px;
+	gap: 12px;
+	padding: 0;
 }
 .filter-heading {
 	display: flex;
@@ -503,19 +519,22 @@ textarea::placeholder {
 	display: inline-flex;
 	align-items: center;
 	gap: 6px;
-	font-size: 14px;
+	font-size: 16px;
 	font-weight: 560;
 }
 .filter-heading a {
 	color: var(--deep);
-	font-size: 13px;
+	font-size: 14px;
 	font-weight: 500;
+	min-height: 44px;
+	display: inline-flex;
+	align-items: center;
 }
 .filter-box label {
 	display: grid;
-	gap: 3px;
+	gap: 4px;
 	color: var(--muted);
-	font-size: 13px;
+	font-size: 14px;
 	font-weight: 500;
 }
 .form-stack label {
@@ -531,13 +550,15 @@ textarea::placeholder {
 	min-width: 0;
 	min-height: 44px;
 	border: 1px solid var(--field-border);
-	border-radius: 7px;
+	border-radius: var(--radius);
 	padding: 8px 10px;
 	background: var(--field);
 }
 .filter-box select {
 	color: var(--ink);
 	font-weight: 440;
+	font-size: 16px;
+	background: var(--surface);
 }
 .filter-box .button {
 	min-height: 44px;
@@ -548,7 +569,7 @@ textarea::placeholder {
 .cards {
 	display: grid;
 	grid-template-columns: repeat(3, minmax(0, 1fr));
-	gap: 16px;
+	gap: 24px;
 	align-items: stretch;
 }
 .machine-card {
@@ -556,12 +577,16 @@ textarea::placeholder {
 	min-width: 0;
 	flex-direction: column;
 	background: var(--surface);
-	border: 1px solid var(--line);
 	border-radius: var(--radius);
+	box-shadow: var(--shadow-card);
+	transition: box-shadow 180ms ease, transform 180ms ease;
 	overflow: hidden;
 }
 .machine-card:hover {
-	border-color: var(--field-border);
+	box-shadow: var(--shadow-hover);
+}
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+	.machine-card:hover { transform: translateY(-2px); }
 }
 .card-image {
 	position: relative;
@@ -578,7 +603,7 @@ textarea::placeholder {
 .tag {
 	display: inline-block;
 	padding: 4px 8px;
-	border-radius: 5px;
+	border-radius: var(--radius);
 	background: var(--tag-neutral);
 	color: var(--tag-neutral-ink);
 	font-size: 12px;
@@ -598,7 +623,7 @@ textarea::placeholder {
 	color: var(--deep);
 }
 .card-body {
-	padding: 13px 14px 12px;
+	padding: 20px;
 	flex: 1;
 	display: flex;
 	flex-direction: column;
@@ -608,17 +633,15 @@ textarea::placeholder {
 	justify-content: space-between;
 	gap: 5px;
 	color: var(--muted);
-	font-size: 11px;
-	text-transform: uppercase;
-	letter-spacing: 0.052em;
-	font-weight: 750;
+	font-size: 14px;
+	font-weight: 450;
 }
 .card-body h3 {
 	font-size: 18px;
-	line-height: 1.22;
-	letter-spacing: -0.025em;
-	margin: 5px 0;
-	font-weight: 680;
+	line-height: 1.4;
+	letter-spacing: -0.02em;
+	margin: 8px 0;
+	font-weight: 620;
 }
 .card-body h3 a {
 	text-decoration: none;
@@ -630,17 +653,15 @@ textarea::placeholder {
 	display: flex;
 	align-items: center;
 	gap: 4px;
-	font-size: 14px;
+	font-size: 15px;
 	color: var(--muted);
-	margin-bottom: 11px;
+	margin-bottom: 20px;
 }
 .card-specs {
 	display: grid;
 	grid-template-columns: 1fr 1fr;
 	gap: 8px;
-	padding-block: 8px;
-	border-top: 1px solid var(--line);
-	border-bottom: 1px solid var(--line);
+	padding-block: 0 12px;
 	margin-top: auto;
 }
 .card-specs small,
@@ -649,10 +670,11 @@ textarea::placeholder {
 }
 .card-specs small {
 	color: var(--muted);
-	font-size: 12px;
+	font-size: 14px;
 }
 .card-specs strong {
-	font-size: 14px;
+	font-size: 15px;
+	font-weight: 550;
 	overflow-wrap: anywhere;
 }
 .card-bottom {
@@ -665,7 +687,8 @@ textarea::placeholder {
 }
 .card-bottom > strong {
 	color: var(--ink);
-	font-size: 17px;
+	font-size: 16px;
+	font-weight: 600;
 	line-height: 1.2;
 	letter-spacing: -0.018em;
 }
@@ -673,10 +696,10 @@ textarea::placeholder {
 	display: inline-flex;
 	align-items: center;
 	gap: 5px;
-	min-height: 32px;
+	min-height: 44px;
 	color: var(--deep);
-	font-size: 14px;
-	font-weight: 750;
+	font-size: 15px;
+	font-weight: 600;
 	text-decoration: none;
 }
 .card-bottom a:hover {
@@ -722,16 +745,16 @@ textarea::placeholder {
 }
 .footer-grid nav h2 {
 	margin-bottom: 5px;
-	font-size: 12px;
+	font-size: 16px;
 	font-weight: 650;
 }
 .footer-grid nav a {
 	display: inline-flex;
 	align-items: center;
 	gap: 5px;
-	min-height: 28px;
+	min-height: 44px;
 	color: var(--muted);
-	font-size: 13px;
+	font-size: 15px;
 }
 .footer-grid nav a svg {
 	flex-shrink: 0;
@@ -739,7 +762,7 @@ textarea::placeholder {
 .footer-base {
 	border-top: 1px solid var(--line);
 	color: var(--muted);
-	font-size: 10px;
+	font-size: 12px;
 }
 .developer-credit strong {
 	color: var(--ink);
@@ -799,7 +822,7 @@ textarea::placeholder {
 }
 .thumbs a {
 	display: block;
-	border-radius: 6px;
+	border-radius: var(--radius);
 	overflow: hidden;
 }
 .thumbs img {
@@ -868,7 +891,7 @@ textarea::placeholder {
 	gap: 13px;
 	margin: 0;
 	border: 1px solid var(--line);
-	border-radius: 8px;
+	border-radius: var(--radius);
 	padding: 12px;
 }
 .form-stack legend {
@@ -901,7 +924,7 @@ textarea::placeholder {
 	gap: 13px;
 	padding: 15px;
 	border: 1px dashed var(--field-border);
-	border-radius: 9px;
+	border-radius: var(--radius);
 	background: var(--subtle);
 	color: var(--deep);
 	cursor: pointer;
@@ -922,7 +945,7 @@ textarea::placeholder {
 	flex: none;
 	display: grid;
 	place-items: center;
-	border-radius: 8px;
+	border-radius: var(--radius);
 	color: var(--primary);
 	background: var(--surface);
 	border: 1px solid var(--line);
@@ -945,7 +968,7 @@ textarea::placeholder {
 	color: var(--success-ink);
 	background: var(--success-bg);
 	padding: 13px 15px;
-	border-radius: 7px;
+	border-radius: var(--radius);
 	margin-bottom: 15px;
 }
 .message-error {
@@ -958,7 +981,7 @@ textarea::placeholder {
 	gap: 7px;
 	padding: 13px;
 	background: var(--subtle);
-	border-radius: 8px;
+	border-radius: var(--radius);
 	overflow-wrap: anywhere;
 }
 .form-preview[hidden] {
@@ -973,7 +996,7 @@ textarea::placeholder {
 	width: 80px;
 	height: 58px;
 	object-fit: cover;
-	border-radius: 5px;
+	border-radius: var(--radius);
 }
 .panel-section {
 	padding: clamp(13px, 3vw, 23px);
@@ -1009,7 +1032,17 @@ textarea::placeholder {
 
 @media (min-width: 900px) {
 	.catalog-columns {
-		grid-template-columns: 205px minmax(0, 1fr);
+		grid-template-columns: 180px minmax(0, 1fr);
+	}
+	.search-input input,
+	.search-form .button,
+	.filter-box select,
+	.filter-box .button {
+		min-height: 38px;
+	}
+	.search-input input,
+	.filter-box select {
+		font-size: 14px;
 	}
 	.filter-box > summary {
 		display: none;
@@ -1017,10 +1050,6 @@ textarea::placeholder {
 	.filter-box:not([open]) > form {
 		display: grid;
 		content-visibility: visible;
-	}
-	.filter-box select,
-	.filter-box .button {
-		min-height: 36px;
 	}
 	.filter-box select {
 		padding-block: 5px;
@@ -1034,6 +1063,10 @@ textarea::placeholder {
 		grid-template-columns: repeat(2, minmax(0, 1fr));
 	}
 }
+@media (max-width: 899px) {
+	.filter-box { background: var(--surface); box-shadow: var(--shadow-card); }
+	.filter-box form { padding: 16px; }
+}
 @media (max-width: 690px) {
 	:root {
 		--nav-size: 13px;
@@ -1045,9 +1078,11 @@ textarea::placeholder {
 		grid-template-columns: 1fr auto;
 		gap: 8px;
 		min-height: 64px;
+		padding-block: 8px;
 	}
 	.top-nav {
-		display: none;
+		grid-column: 1 / -1;
+		grid-row: 2;
 	}
 	.brand {
 		gap: 7px;
@@ -1069,9 +1104,7 @@ textarea::placeholder {
 	.topbar .header-cta {
 		padding-inline: 9px;
 	}
-	.catalog-nav {
-		padding: 12px 0;
-	}
+	.catalog-search { flex: auto; width: 100%; }
 	.search-form {
 		gap: 5px;
 	}
@@ -1097,22 +1130,19 @@ textarea::placeholder {
 	.category-tab {
 		min-height: 44px;
 		padding-inline: 8px;
-		border-radius: 13px 13px 0 0;
+		border-radius: var(--radius);
 	}
 	.more-tabs summary::after {
 		margin-left: 6px;
 	}
 	.catalog {
-		padding-top: 17px;
+		padding-top: 24px;
 	}
 	.catalog-heading {
 		align-items: start;
 		flex-direction: column;
-		gap: 2px;
-		margin-bottom: 10px;
-	}
-	.help-link {
-		padding-block: 5px;
+		gap: 20px;
+		margin-bottom: 24px;
 	}
 	.detail-grid {
 		grid-template-columns: 1fr;
