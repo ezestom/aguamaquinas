@@ -1,6 +1,8 @@
 ---
 import Icon from './Icon.astro';
 import InquiryCriteria from './InquiryCriteria.astro';
+import EquipmentDetails from './EquipmentDetails.astro';
+import ProductGallery from './ProductGallery.astro';
 import { categories, conditions, formats, provinces, priceLabel } from '../lib/catalog.mjs';
 import { getPhotos } from '../lib/db.mjs';
 import { listingStatuses, recordRevision } from '../lib/listing-management.mjs';
@@ -27,6 +29,7 @@ const equipment = [ ['title','Título',90], ['brand','Marca',60], ['model','Mode
 const selects = [ ['category','Categoría',Object.entries(categories)], ['province','Provincia',provinces.map(province => [province, province])],
   ['condition','Estado del equipo',Object.entries(conditions)], ['format','Formato',Object.entries(formats)] ];
 const edit = ['edit', 'seller', 'followup'].includes(operation);
+const publishing = listing && operation === 'published';
 const legacyContact = !listing && Boolean(record.contact && !record.buyer_email && !record.buyer_whatsapp);
 const whatsapp = !listing && record.buyer_whatsapp?.startsWith('+') ? record.buyer_whatsapp.replace(/\D/g, '') : '';
 const sources = [...new Set([defaultInquirySource, ...Object.values(inquirySources), listing ? defaultInquirySource : record.origin])];
@@ -35,7 +38,7 @@ const amountFields = [
 ];
 const formatDate = new Intl.DateTimeFormat('es-AR', { dateStyle: 'medium', timeZone: 'America/Argentina/Buenos_Aires' });
 ---
-<dialog open class:list={['admin-dialog', { 'admin-dialog-wide': edit || operation === 'view' }]} aria-labelledby="panel-dialog-title" data-panel-dialog>
+<dialog open class:list={['admin-dialog', { 'admin-dialog-wide': edit || operation === 'view', 'admin-dialog-preview': publishing }]} aria-labelledby="panel-dialog-title" data-panel-dialog>
   <div class="admin-dialog-head">
     <span class:list={['admin-dialog-icon', { 'admin-danger-icon': operation === 'delete' }]}><Icon name={operation === 'delete' ? 'trash' : edit ? 'edit' : operation === 'restore' ? 'restore' : 'list'} size={22} /></span>
     <div><h2 id="panel-dialog-title">{titles[operation]}</h2><p>{name}{listing && <> · {record.ref}</>}</p></div>
@@ -139,10 +142,15 @@ const formatDate = new Intl.DateTimeFormat('es-AR', { dateStyle: 'medium', timeZ
           <label>Fecha de cobro<input name="paid_on" type="date" value={value('paid_on')} /></label>
         </div></fieldset>
       </div>}
-      {!edit && <p>{notes[operation]}</p>}
+      {publishing && <div class="detail-grid admin-publish-preview">
+        <ProductGallery photos={getPhotos(record)} title={record.title} preview />
+        <EquipmentDetails machine={record} heading="h3" />
+      </div>}
+      {!edit && <p class:list={[publishing && 'admin-publish-note']}>{notes[operation]}</p>}
     </div>
     <div class="admin-dialog-foot">
       <a class="button button-outline" href={closeUrl} autofocus>Cancelar</a>
+      {publishing && <a class="button button-outline" href={link('edit', kind, record.ref)}>Editar aviso</a>}
       <button class:list={['button', operation === 'delete' ? 'admin-danger-button' : 'button-primary']} type="submit">{edit ? 'Guardar cambios' : operation === 'delete' ? 'Mover a la papelera' : titles[operation]}</button>
     </div>
   </form>}

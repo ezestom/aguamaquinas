@@ -8,9 +8,10 @@ import { dataDir } from '../lib/db.mjs';
 interface Props {
   photos: string[];
   title: string;
+  preview?: boolean;
 }
 
-const { photos, title } = Astro.props;
+const { photos, title, preview = false } = Astro.props;
 const slides = await Promise.all(photos.map(async (src) => {
   const upload = /^\/media\/([a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}\.webp)$/.exec(src);
   const sample = /^\/equipos\/([a-z]+\.webp)$/.exec(src);
@@ -27,12 +28,12 @@ const slides = await Promise.all(photos.map(async (src) => {
 })).then(results => results.filter(slide => slide !== null));
 ---
 
-<product-gallery aria-label="Fotos del equipo" role="region">
+<product-gallery aria-label="Fotos del equipo" role="region" data-preview={preview || undefined}>
   {slides.length ? <>
     <div class="gallery-stage">
       <div class="gallery-track" data-track>
         {slides.map(({ src, width, height }, index) => (
-          <a id={`foto-${index + 1}`} class="gallery-slide" href={src} data-astro-reload
+          <a id={`foto-${index + 1}`} class="gallery-slide" href={src} data-astro-reload target={preview ? '_blank' : undefined} rel={preview ? 'noopener noreferrer' : undefined}
             data-pswp-width={width} data-pswp-height={height}
             aria-label={`Ampliar foto ${index + 1} de ${slides.length}`}>
             <img src={src} width={width} height={height} alt={`Foto ${index + 1} de ${title}`}
@@ -40,7 +41,7 @@ const slides = await Promise.all(photos.map(async (src) => {
           </a>
         ))}
       </div>
-      <button class="gallery-expand" data-expand type="button" hidden><Icon name="expand" size={17} /> Ampliar</button>
+      {!preview && <button class="gallery-expand" data-expand type="button" hidden><Icon name="expand" size={17} /> Ampliar</button>}
       {slides.length > 1 && <div class="gallery-controls" data-controls hidden>
         <button class="gallery-arrow gallery-previous" data-step="-1" type="button" aria-label="Foto anterior" disabled><Icon name="previous" size={21} /></button>
         <button class="gallery-arrow gallery-next" data-step="1" type="button" aria-label="Foto siguiente"><Icon name="next" size={21} /></button>
@@ -123,7 +124,7 @@ const slides = await Promise.all(photos.map(async (src) => {
         goTo(index);
       }, { signal }));
 
-      const lightbox = new PhotoSwipeLightbox({
+      const lightbox = this.hasAttribute('data-preview') ? undefined : new PhotoSwipeLightbox({
         gallery: track,
         children: '.gallery-slide',
         pswpModule: () => import('photoswipe'),
@@ -138,16 +139,16 @@ const slides = await Promise.all(photos.map(async (src) => {
         errorMsg: 'No se pudo cargar la foto.',
       });
       let zoomedIndex = 0;
-      lightbox.on('afterInit', () => lightbox.pswp?.element?.setAttribute('aria-label', 'Galería de fotos del equipo'));
-      lightbox.on('change', () => { zoomedIndex = lightbox.pswp?.currIndex ?? zoomedIndex; });
-      lightbox.on('destroy', () => { if (this.isConnected) goTo(zoomedIndex, true); });
-      lightbox.init();
+      lightbox?.on('afterInit', () => lightbox.pswp?.element?.setAttribute('aria-label', 'Galería de fotos del equipo'));
+      lightbox?.on('change', () => { zoomedIndex = lightbox.pswp?.currIndex ?? zoomedIndex; });
+      lightbox?.on('destroy', () => { if (this.isConnected) goTo(zoomedIndex, true); });
+      lightbox?.init();
       select(snapIndex(track, slides.length));
       if (controls) controls.hidden = false;
       if (expand) expand.hidden = false;
       this.cleanup = () => {
         controller.abort();
-        lightbox.destroy();
+        lightbox?.destroy();
       };
     }
 

@@ -1,0 +1,112 @@
+---
+interface Props {
+  total: number;
+}
+
+const { total } = Astro.props;
+const formatted = new Intl.NumberFormat('es-AR').format(total);
+const label = total === 1 ? 'equipo en el catálogo' : 'equipos en el catálogo';
+---
+
+<catalog-count>
+  <p class="wrap">
+    <span class="visually-hidden">{formatted} {label}</span>
+    <span class="catalog-count-value" aria-hidden="true">
+      {[...formatted].map((character) => {
+        if (!/\d/.test(character)) return <span>{character}</span>;
+
+        const steps = Number(character) || (total ? 10 : 0);
+        return <span class="digit">
+          <span class="digit-reel" style={`--steps: ${steps}`}>
+            {Array.from({ length: steps + 1 }, (_, step) => <span>{step % 10}</span>)}
+          </span>
+        </span>;
+      })}
+    </span>
+    <span class="catalog-count-label" aria-hidden="true">{label}</span>
+  </p>
+</catalog-count>
+
+<script>
+  let played = false;
+
+  class CatalogCount extends HTMLElement {
+    observer?: IntersectionObserver;
+
+    connectedCallback() {
+      if (played || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
+      this.observer = new IntersectionObserver(([entry], observer) => {
+        if (entry.intersectionRatio < 0.5) return;
+        observer.disconnect();
+        if (played || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
+        played = true;
+        this.querySelectorAll('.digit-reel').forEach((digit, index) => {
+          digit.animate([
+            { transform: 'translateY(0)' },
+            { transform: 'translateY(calc(-1lh * var(--steps)))' },
+          ], {
+            duration: 640,
+            delay: Math.min(index * 35, 140),
+            easing: 'cubic-bezier(0.2, 0.65, 0.3, 1)',
+            fill: 'backwards',
+          });
+        });
+      }, { threshold: 0.5 });
+      this.observer.observe(this);
+    }
+
+    disconnectedCallback() {
+      this.observer?.disconnect();
+    }
+  }
+
+  customElements.define('catalog-count', CatalogCount);
+</script>
+
+<style>
+  catalog-count {
+    display: block;
+    background: var(--campaign-fade-edge);
+  }
+  p {
+    display: flex;
+    justify-content: center;
+    align-items: baseline;
+    gap: 10px;
+    padding-block: 4px 2px;
+  }
+  .catalog-count-value {
+    display: inline-flex;
+    color: var(--deep);
+    font-size: clamp(1.875rem, 2.6vw, 2.5rem);
+    font-weight: 740;
+    font-variant-numeric: tabular-nums;
+    line-height: 1.1;
+  }
+  .digit {
+    display: inline-block;
+    overflow: hidden;
+    height: 1lh;
+  }
+  .digit-reel {
+    display: block;
+    transform: translateY(calc(-1lh * var(--steps)));
+  }
+  .digit-reel > span { display: block; }
+  .catalog-count-label {
+    color: var(--deep);
+    font-size: 0.875rem;
+    font-weight: 600;
+  }
+  @media (min-width: 900px) {
+    catalog-count {
+      --overlap: 26px;
+      position: relative;
+      margin-top: calc(-1 * var(--overlap));
+      background: linear-gradient(transparent var(--overlap), var(--campaign-fade-edge) var(--overlap));
+      pointer-events: none;
+    }
+  }
+</style>

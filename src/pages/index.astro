@@ -3,6 +3,7 @@ import Layout from '../layouts/Layout.astro';
 import Icon from '../components/Icon.astro';
 import MachineCard from '../components/MachineCard.astro';
 import HomeCarousel from '../components/HomeCarousel.astro';
+import CatalogCount from '../components/CatalogCount.astro';
 import FeaturedShelf from '../components/FeaturedShelf.astro';
 import { categories, conditions, formats, matches, provinces } from '../lib/catalog.mjs';
 import { db } from '../lib/db.mjs';
@@ -26,9 +27,10 @@ const featured = Array.from({ length: featuredLimit }, (_, index) =>
   assigned.find(machine => machine.featured_position === index + 1) ?? referenceSlots.shift()
 ).filter(Boolean);
 const featuredRefs = new Set(home ? featured.map(machine => machine.ref) : []);
-const published = db().prepare(`SELECT m.*, d.price_max FROM machines m LEFT JOIN listing_details d ON d.machine_ref = m.ref
+const publicListings = db().prepare(`SELECT m.*, d.price_max FROM machines m LEFT JOIN listing_details d ON d.machine_ref = m.ref
   WHERE m.status = 'published' AND m.sample = 0 ORDER BY m.id DESC`)
-  .all().filter(machine => matches(machine, filters));
+  .all();
+const published = publicListings.filter(machine => matches(machine, filters));
 const references = referenceEquipment.filter(machine => matches(machine, filters));
 const machines = [...published, ...references].filter(machine => !featuredRefs.has(machine.ref));
 const publishedCount = published.length;
@@ -55,6 +57,7 @@ const filterCount = ['provincia', 'formato', 'estado'].filter(key => filters.has
 <Layout>
   <div class="catalog-intro">
     <HomeCarousel campaigns={campaigns} inquiryHref={inquiryHref} />
+    <CatalogCount total={publicListings.length + referenceEquipment.length} />
     {featured.length > 0 && <FeaturedShelf machines={featured} params={filters} />}
   </div>
   <category-tabs class="category-band" id="explorar">
@@ -70,49 +73,51 @@ const filterCount = ['provincia', 'formato', 'estado'].filter(key => filters.has
   </category-tabs>
   <section class="wrap catalog" id="catalogo" aria-labelledby="catalog-title">
     <div class="catalog-heading">
-      <div><h1 id="catalog-title">{category ? categories[category] : 'Catálogo de equipos'}</h1><p>{count || '0 equipos'}{filters.get('q') && ` para «${filters.get('q')}»`}</p></div>
+      <h1 id="catalog-title">{category ? categories[category] : 'Catálogo de equipos'}</h1>
+      <p>{count || '0 equipos'}{filters.get('q') && ` para «${filters.get('q')}»`}</p>
+    </div>
+    <div class="catalog-controls">
       <form class="catalog-search" action="/" role="search">
         <label for="search">Buscar un equipo</label>
         <div class="search-form">
-          <div class="search-input"><Icon name="search" /><input id="search" name="q" type="search" maxlength="120" placeholder="Equipo, marca o referencia" value={filters.get('q') ?? ''} /></div>
+          <div class="search-input"><Icon name="search" /><input id="search" name="q" type="search" maxlength="120" placeholder="Equipo, marca o ref." value={filters.get('q') ?? ''} /></div>
           {['categoria', 'provincia', 'formato', 'estado', 'origen'].map(key => filters.has(key) && <input type="hidden" name={key} value={filters.get(key)} />)}
           <button class="button button-primary" type="submit">Buscar</button>
         </div>
       </form>
-    </div>
-    <div class="catalog-columns">
-      <aside class="catalog-sidebar" aria-label="Filtros">
-      <details class="filter-box" open={filterCount > 0}>
-        <summary><Icon name="filters" size={19} /> Filtrar equipos {filterCount > 0 && <span class="filter-count">{filterCount}</span>}</summary>
-        <form action="/" data-catalog-filters>
-          <div class="filter-heading"><span><Icon name="filters" size={19} /> Filtros</span>{filterCount > 0 && <a href={`/${reset.size ? `?${reset}` : ''}`}>Limpiar</a>}</div>
+      <details class="filter-box" open>
+        <summary>
+          <Icon name="filters" size={19} />
+          Filtrar equipos
+          {filterCount > 0 && <span class="filter-count">{filterCount}<span class="sr-only"> {filterCount === 1 ? 'filtro activo' : 'filtros activos'}</span></span>}
+          <span class="filter-chevron"><Icon name="next" size={15} /></span>
+        </summary>
+        <form action="/" aria-label="Filtros del catálogo" data-catalog-filters>
           {['categoria', 'q', 'origen'].map(key => filters.has(key) && <input type="hidden" name={key} value={filters.get(key)} />)}
           <label>Provincia<select name="provincia"><option value="">Todas</option>{provinces.map(province => <option value={province} selected={filters.get('provincia') === province}>{province}</option>)}</select></label>
           <label>Formato<select name="formato"><option value="">Todos</option>{Object.entries(formats).map(([key, label]) => <option value={key} selected={filters.get('formato') === key}>{label}</option>)}</select></label>
           <label>Estado<select name="estado"><option value="">Todos</option>{Object.entries(conditions).map(([key, label]) => <option value={key} selected={filters.get('estado') === key}>{label}</option>)}</select></label>
           <button type="submit" class="button button-outline">Aplicar filtros</button>
+          {filterCount > 0 && <a class="clear-filters" href={`/${reset.size ? `?${reset}` : ''}`}>Limpiar filtros</a>}
         </form>
       </details>
-      </aside>
-      <div class="catalog-results">
-        {machines.length > 0 ? <div class="cards">{machines.map((machine, index) => <MachineCard machine={machine} params={filters} priority={!home && index < 3} />)}</div> : !count && <div class="empty"><Icon name="search" size={32} /><h2>No encontramos equipos con esa búsqueda</h2><p>Probá con otra palabra o contanos qué máquina necesitás.</p><a class="button button-primary" href={inquiryHref}>Pedir un equipo</a></div>}
-      </div>
     </div>
+    {machines.length > 0 ? <div class="cards">{machines.map((machine, index) => <MachineCard machine={machine} params={filters} priority={!home && index < 3} />)}</div> : !count && <div class="empty"><Icon name="search" size={32} /><h2>No encontramos equipos con esa búsqueda</h2><p>Probá con otra palabra o contanos qué máquina necesitás.</p><a class="button button-primary" href={inquiryHref}>Pedir un equipo</a></div>}
   </section>
   <script>
     import '../components/category-tabs';
-    const desktop = window.matchMedia('(min-width: 900px)');
+    const wideFilters = window.matchMedia('(min-width: 691px)');
     let changedFilter: string | undefined;
     const syncFilters = (restoreFocus = false) => {
       const box = document.querySelector<HTMLDetailsElement>('.filter-box');
       const form = box?.querySelector<HTMLFormElement>('[data-catalog-filters]');
       if (!box || !form) return;
       const selects = [...form.querySelectorAll('select')];
-      box.open = desktop.matches || selects.some(select => select.value !== '') || Boolean(restoreFocus && changedFilter);
+      box.open = wideFilters.matches || selects.some(select => select.value !== '') || Boolean(restoreFocus && changedFilter);
       form.querySelector<HTMLButtonElement>('button[type="submit"]')!.hidden = true;
       if (restoreFocus) selects.find(select => select.name === changedFilter)?.focus({ preventScroll: true });
     };
-    desktop.addEventListener('change', () => syncFilters());
+    wideFilters.addEventListener('change', () => syncFilters());
     document.addEventListener('astro:after-swap', () => {
       syncFilters(true);
       changedFilter = undefined;
@@ -131,5 +136,4 @@ const filterCount = ['provincia', 'formato', 'estado'].filter(key => filters.has
   .catalog-intro {
     --campaign-fade-edge: color-mix(in srgb, var(--primary) 15%, var(--surface));
   }
-  .catalog-results { min-width: 0; }
 </style>

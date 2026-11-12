@@ -1,0 +1,26 @@
+---
+import Icon from './Icon.astro';
+import { categories, conditions, formats, priceLabel } from '../lib/catalog.mjs';
+
+const { machine, heading: Heading = 'h1' } = Astro.props;
+const DescriptionHeading = Heading === 'h1' ? 'h2' : 'h4';
+---
+
+<section class="detail-copy">
+  <p class="eyebrow">{categories[machine.category]} · {machine.ref}</p>
+  <Heading class="equipment-title">{machine.title}</Heading>
+  <p class="card-location"><Icon name="pin" size={19} />{machine.province}</p>
+  <span class:list={['tag', `tag-${machine.condition}`]}>{conditions[machine.condition]}</span>
+  <dl>
+    <div><dt>Capacidad</dt><dd>{machine.capacity || 'A confirmar'}</dd></div>
+    <div><dt>Formato</dt><dd>{machine.format_detail || formats[machine.format]}</dd></div>
+    <div><dt>Marca</dt><dd>{machine.brand || 'A confirmar'}</dd></div>
+    <div><dt>Modelo</dt><dd>{machine.model || 'A confirmar'}</dd></div>
+  </dl>
+  <p class="detail-price">{machine.reference ? 'Equipo de referencia' : priceLabel(machine)}</p>
+  {(Astro.slots.has('default') || machine.video) && <div class="detail-actions">
+    <slot />
+    {machine.video && <a class="button button-outline" href={machine.video} target="_blank" rel="noopener noreferrer"><Icon name="play" size={17} /> Ver video <Icon name="external" size={14} /></a>}
+  </div>}
+  <div class="detail-desc"><DescriptionHeading class="equipment-description-title">Sobre el equipo</DescriptionHeading><p>{machine.description}</p></div>
+</section>

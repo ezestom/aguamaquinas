@@ -1,0 +1,50 @@
+---
+interface Props {
+  current: 1 | 2 | 3;
+}
+
+const { current } = Astro.props;
+const steps = ['Verificar email', 'Cargar aviso', 'Revisión y publicación'];
+---
+
+<ol class="publication-steps" role="list" aria-label="Pasos para publicar">
+  {steps.map((label, index) => (
+    <li aria-current={current === index + 1 ? 'step' : undefined}>
+      <span aria-hidden="true">{index + 1}</span>
+      {label}
+    </li>
+  ))}
+</ol>
+
+<style>
+  .publication-steps {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 14px;
+    margin: 0 0 14px;
+    padding: 0;
+    list-style: none;
+  }
+  li {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--muted);
+    font-size: 0.8125rem;
+    font-weight: 650;
+  }
+  li span {
+    display: grid;
+    place-items: center;
+    width: 22px;
+    height: 22px;
+    border: 1px solid var(--line);
+    background: var(--surface);
+  }
+  li[aria-current] { color: var(--deep); }
+  li[aria-current] span {
+    color: var(--on-primary);
+    background: var(--primary);
+    border-color: var(--primary);
+  }
+</style>

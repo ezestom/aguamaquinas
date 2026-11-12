@@ -41,4 +41,15 @@ const href = `/equipos/${machine.ref}${query ? `?${query}` : ''}`;
   .machine-card-compact .card-bottom { flex-wrap: nowrap; margin-top: auto; padding-top: 6px; color: var(--deep); }
   .machine-card-compact .card-bottom strong { font-size: .875rem; }
   .machine-card-compact .card-bottom svg { flex-shrink: 0; }
+  @media (min-width: 900px) {
+    .card-status, .card-bottom .price-unlisted { font-size: 0.8125rem; }
+    .machine-card-compact .card-body { padding: 11px 11px 10px; }
+    .machine-card-compact .card-meta,
+    .machine-card-compact .card-status,
+    .machine-card-compact .card-bottom strong { font-size: 0.75rem; }
+    .machine-card-compact h3 { margin-block: 6px; font-size: 0.8125rem; }
+    .machine-card-compact .card-status { margin-bottom: 6px; }
+    .machine-card-compact .card-bottom { padding-top: 4px; }
+    .machine-card-compact .card-bottom svg { width: 13px; height: 13px; }
+  }
 </style>

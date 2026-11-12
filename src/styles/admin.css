@@ -52,6 +52,13 @@
 
 .admin-dialog { box-sizing: border-box; width: min(470px, calc(100% - 26px)); max-height: calc(100dvh - 30px); padding: 0; margin: auto; overflow: auto; color: var(--ink); background: var(--surface); border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 20px 52px #0004; }
 .admin-dialog-wide { width: min(650px, calc(100% - 26px)); }
+.admin-dialog-preview { width: min(880px, calc(100% - 26px)); }
+.admin-publish-preview { gap: 14px; }
+.admin-publish-preview .detail-copy { min-width: 0; padding: 16px; }
+.admin-publish-preview .equipment-title { margin: 6px 0; font-size: 1.5rem; line-height: 1.16; font-weight: 740; }
+.admin-publish-preview .card-location { margin-bottom: 4px; }
+.admin-publish-preview .equipment-description-title { font-size: 1rem; font-weight: 700; }
+.admin-publish-note { color: var(--muted); font-size: .875rem; }
 .admin-dialog:not(:modal) { position: static; max-height: none; margin-bottom: 18px; }
 @media (scripting: enabled) {
   .admin-dialog[open]:not(:modal) { display: none; }

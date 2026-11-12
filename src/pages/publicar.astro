@@ -1,6 +1,8 @@
 ---
 import Layout from '../layouts/Layout.astro';
 import Icon from '../components/Icon.astro';
+import ListingPreview from '../components/ListingPreview.astro';
+import PublicationSteps from '../components/PublicationSteps.astro';
 import { categories, conditions, formats, provinces } from '../lib/catalog.mjs';
 import { FormError, startListingUpload, submitMachine, text, UploadLimitError } from '../lib/submissions.mjs';
 import { listingVerification, verificationCookie } from '../lib/listing-verification.mjs';
@@ -40,9 +42,10 @@ const value = (field) => text(form, field, 1600);
 <Layout title="Publicar una máquina" page="publicar">
   <div class="wrap interior form-interior">
     <a class="back-link" href="/"><Icon name="back" size={18} /> Volver al catálogo</a>
-    <header class="page-heading"><h1>{sent ? 'Aviso recibido' : 'Publicá tu máquina gratis'}</h1>{!sent && <p>Paso 2 de 2 · Agregá los datos y las fotos del equipo para que podamos revisar el aviso.</p>}</header>
+    <PublicationSteps current={sent ? 3 : 2} />
+    <header class="page-heading"><h1>{sent ? 'Aviso recibido' : 'Publicá tu máquina gratis'}</h1>{!sent && <p>Cargá los datos y las fotos del equipo. Si aprobamos el aviso después de revisarlo, aparecerá en el catálogo.</p>}</header>
     <div class="form-card">
-      {sent ? <><p class="message" role="status">Tu aviso <strong>{sent}</strong> quedó pendiente de revisión.</p><a class="button button-primary" href="/">Volver al catálogo</a></> : <>
+      {sent ? <><p class="message" role="status">Tu aviso <strong>{sent}</strong> quedó pendiente de revisión. Si lo aprobamos, aparecerá en el catálogo.</p><a class="button button-primary" href="/">Volver al catálogo</a></> : <>
         {error && <p class="message message-error" role="alert">{error} Volvé a seleccionar las fotos antes de enviar.</p>}
         <form class="form-stack" id="listing" method="post" enctype="multipart/form-data" data-astro-reload>
           <fieldset><legend>1. Datos del equipo</legend>
@@ -89,15 +92,15 @@ const value = (field) => text(form, field, 1600);
             </div>
             <p class="listing-verified"><Icon name="check" size={18} /><span><strong>Email verificado</strong> · {verified?.email}</span></p>
           </fieldset>
-          <button class="button button-outline" id="show-preview" type="button" hidden>Ver vista previa</button>
-          <div class="form-preview" id="listing-preview" tabindex="-1" hidden><p class="eyebrow">Vista previa del aviso</p><strong></strong><p data-summary></p><p data-description></p></div>
+          <button class="button button-outline" id="show-preview" type="button" aria-expanded="false" aria-controls="listing-preview" hidden>Ver vista previa</button>
+          <ListingPreview />
           <button class="button button-primary" type="submit">Enviar a revisión <Icon name="arrow" size={18} /></button>
         </form>
       </>}
     </div>
   </div>
   <script>
-    import { priceLabel } from '../lib/catalog.mjs';
+    import { categories, conditions, formats, listingPriceError, priceLabel, videoLink } from '../lib/catalog.mjs';
 
     document.addEventListener('astro:page-load', () => {
       const input = document.querySelector<HTMLInputElement>('#photos');
@@ -111,6 +114,83 @@ const value = (field) => text(form, field, 1600);
 
       const photos: { file: File; url: string }[] = [];
       const allowedTypes = input.accept.split(',');
+      const mainPhoto = preview.querySelector<HTMLImageElement>('[data-main-photo]')!;
+      const emptyPhoto = preview.querySelector<HTMLElement>('[data-empty-photo]')!;
+      const previewThumbs = preview.querySelector<HTMLElement>('[data-preview-thumbs]')!;
+      const previewVideo = preview.querySelector<HTMLAnchorElement>('[data-video]')!;
+      const videoError = preview.querySelector<HTMLElement>('[data-video-error]')!;
+      const previewPrice = preview.querySelector<HTMLElement>('[data-price]')!;
+      const priceError = preview.querySelector<HTMLElement>('[data-price-error]')!;
+      const previewCondition = preview.querySelector<HTMLElement>('[data-condition]')!;
+      const previewLocation = preview.querySelector<HTMLElement>('[data-location]')!;
+      let selectedPhoto = '';
+
+      const selectPreviewPhoto = (index: number) => {
+        selectedPhoto = photos[index]?.url ?? '';
+        mainPhoto.hidden = !selectedPhoto;
+        emptyPhoto.hidden = Boolean(selectedPhoto);
+        if (selectedPhoto) {
+          mainPhoto.src = selectedPhoto;
+          mainPhoto.alt = `Foto ${index + 1} de ${photos.length} del equipo`;
+        } else {
+          mainPhoto.removeAttribute('src');
+        }
+        [...previewThumbs.querySelectorAll('button')].forEach((thumb, number) => {
+          thumb.setAttribute('aria-pressed', String(number === index));
+        });
+      };
+
+      const renderPreviewPhotos = () => {
+        const selectedIndex = Math.max(0, photos.findIndex(photo => photo.url === selectedPhoto));
+        previewThumbs.replaceChildren(...photos.map(({ url }, index) => {
+          const thumb = document.createElement('button');
+          thumb.type = 'button';
+          thumb.setAttribute('aria-label', `Ver foto ${index + 1}`);
+          const image = new Image();
+          image.src = url;
+          image.alt = '';
+          thumb.append(image);
+          thumb.addEventListener('click', () => selectPreviewPhoto(index));
+          return thumb;
+        }));
+        selectPreviewPhoto(selectedIndex);
+      };
+
+      const renderPreviewDetails = () => {
+        const value = (name: string) => (form.elements.namedItem(name) as HTMLInputElement).value.trim();
+        const condition = value('condition') as keyof typeof conditions;
+        const province = value('province');
+        const price = value('price');
+        const upper = value('price_max');
+        const invalidPrice = listingPriceError(price, upper);
+        const video = videoLink(value('video'));
+        const details = {
+          category: categories[value('category') as keyof typeof categories] ?? 'Categoría pendiente',
+          title: value('title') || 'Título del aviso',
+          province,
+          capacity: value('capacity') || 'A confirmar',
+          format: value('format_detail') || formats[value('format') as keyof typeof formats] || 'A confirmar',
+          brand: value('brand') || 'A confirmar',
+          model: value('model') || 'A confirmar',
+          description: value('description') || 'Agregá una descripción del equipo.',
+        };
+        for (const [field, content] of Object.entries(details)) {
+          preview.querySelector(`[data-${field}]`)!.textContent = content;
+        }
+        previewLocation.hidden = !province;
+        previewCondition.hidden = !condition;
+        previewCondition.textContent = conditions[condition] ?? '';
+        previewCondition.className = condition ? `tag tag-${condition}` : 'tag';
+        previewPrice.hidden = Boolean(invalidPrice);
+        previewPrice.textContent = invalidPrice ? '' : priceLabel({ price: Number(price), price_max: Number(upper), currency: 'USD' });
+        priceError.hidden = !invalidPrice;
+        priceError.textContent = invalidPrice;
+        previewVideo.hidden = !video;
+        if (video) previewVideo.href = video;
+        else previewVideo.removeAttribute('href');
+        videoError.hidden = video !== null;
+      };
+
       const sameFile = (a: File, b: File) =>
         a.name === b.name && a.size === b.size && a.lastModified === b.lastModified;
       const renderPhotos = (message = '') => {
@@ -139,6 +219,7 @@ const value = (field) => text(form, field, 1600);
           thumb.append(image, remove);
           return thumb;
         }));
+        if (!preview.hidden) renderPreviewPhotos();
       };
       const addPhotos = (files: FileList | null) => {
         const messages = new Set<string>();
@@ -171,20 +252,27 @@ const value = (field) => text(form, field, 1600);
       document.addEventListener('astro:before-swap', () => photos.forEach(photo => URL.revokeObjectURL(photo.url)), { once: true });
       addPhotos(input.files);
       button.hidden = false;
+      form.addEventListener('input', event => {
+        if (!preview.hidden && event.target !== input) renderPreviewDetails();
+      });
       button.addEventListener('click', () => {
-        const fields = new FormData(form);
-        preview.querySelector('strong')!.textContent = String(fields.get('title') || 'Título del equipo');
-        const amount = priceLabel({ price: Number(fields.get('price')), price_max: Number(fields.get('price_max')), currency: 'USD' });
-        preview.querySelector('[data-summary]')!.textContent = [fields.get('province'), fields.get('capacity'), amount].filter(Boolean).join(' · ');
-        preview.querySelector('[data-description]')!.textContent = String(fields.get('description') || 'Agregá una descripción para completar el aviso.');
-        preview.hidden = false;
-        preview.focus();
+        const opening = preview.hidden;
+        preview.hidden = !opening;
+        button.setAttribute('aria-expanded', String(opening));
+        button.textContent = opening ? 'Ocultar vista previa' : 'Ver vista previa';
+        if (opening) {
+          renderPreviewDetails();
+          renderPreviewPhotos();
+          preview.focus();
+        }
       });
     });
   </script>
 </Layout>
 
 <style>
+  #listing .field-grid label { display: flex; flex-direction: column; }
+  #listing .field-grid :is(input, select) { margin-top: auto; }
   .listing-verified { display: flex; align-items: start; gap: 8px; color: var(--success-ink); overflow-wrap: anywhere; }
   .listing-verified svg { flex: none; margin-top: 3px; }
   .photo-drop-hint { margin-block: 3px; }

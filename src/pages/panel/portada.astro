@@ -79,7 +79,7 @@ const sponsored = form ? form.get('sponsored') === '1' : Boolean(current?.sponso
       </ol>
     </section>
 
-    {(isCampaign || isFeatured || isDelete) && <dialog open class:list={['admin-dialog', !isDelete && 'admin-dialog-wide']} data-panel-dialog aria-labelledby="home-settings-dialog">
+    {(isCampaign || isFeatured || isDelete) && <dialog open class:list={['admin-dialog', !isDelete && 'admin-dialog-wide', isCampaign && 'campaign-dialog']} data-panel-dialog aria-labelledby="home-settings-dialog">
       <div class="admin-dialog-head">
         <span class:list={['admin-dialog-icon', isDelete && 'admin-danger-icon']}><Icon name={isDelete ? 'trash' : current || isFeatured ? 'edit' : 'plus'} size={22} /></span>
         <div><h2 id="home-settings-dialog">{isDelete ? 'Eliminar campaña' : isFeatured ? 'Editar destacados' : current ? 'Editar campaña' : 'Nueva campaña'}</h2>{isDelete && <p>{current.title}</p>}</div>
@@ -98,16 +98,31 @@ const sponsored = form ? form.get('sponsored') === '1' : Boolean(current?.sponso
               </select></label>
               <label class="home-check"><input type="checkbox" name={'sponsor-' + slot.position} value="1" checked={form ? form.get('sponsor-' + slot.position) === '1' : Boolean(slot.sponsored)} /> Patrocinado</label>
             </fieldset>;
-          }) : <div class="admin-fields">
+          }) : <div class="campaign-fields">
             <label class="admin-field-wide">Título<input name="title" required maxlength="80" value={field('title')} /></label>
-            <label class="admin-field-wide">Descripción<textarea name="description" required maxlength="180">{field('description')}</textarea></label>
-            <label>Texto de la acción<input name="label" required maxlength="34" value={field('label')} /><small>En publicidad se usa «Ver» seguido del título. Usá el nombre del producto como título.</small></label>
+            <label class="admin-field-wide">Descripción<textarea name="description" rows="2" required maxlength="180">{field('description')}</textarea></label>
+            <label>Texto del botón<input name="label" required maxlength="34" value={field('label')} /></label>
             <label>Orden<input name="position" type="number" min="1" max="99" required value={field('position', '1')} /></label>
             <label class="admin-field-wide">Enlace<input name="href" required maxlength="500" placeholder="/consulta o https://…" value={field('href')} /></label>
-            <label class="admin-field-wide">Imagen opcional <small>JPG, PNG o WebP de hasta 4 MB. Para publicidad, subí una foto del producto. Las demás campañas con imagen usan el banner completo como enlace.</small><input name="image" type="file" accept="image/jpeg,image/png,image/webp" /></label>
-            {current?.has_image && <div class="admin-field-wide home-current-image"><img src={`/campanas/${current.id}.webp`} alt="Imagen actual" /><label class="home-check"><input type="checkbox" name="remove-image" value="1" /> Quitar imagen</label></div>}
-            <label class="admin-field-wide home-check"><input type="checkbox" name="active" value="1" checked={active} /> Mostrar campaña en la portada</label>
-            <label class="admin-field-wide home-check"><input type="checkbox" name="sponsored" value="1" checked={sponsored} /> Marcar como publicidad</label>
+            <campaign-image class="admin-field-wide">
+              <div class="campaign-image-copy">
+                <label for="campaign-image">Imagen <small>Opcional</small></label>
+                <p id="campaign-image-help">JPG, PNG o WebP de hasta 4 MB. Usá una foto del producto para publicidad o un banner completo para las demás campañas.</p>
+                <input id="campaign-image" name="image" type="file" accept="image/jpeg,image/png,image/webp" aria-describedby="campaign-image-help campaign-image-status" />
+                {current?.has_image && <label class="home-check"><input type="checkbox" name="remove-image" value="1" checked={form?.get('remove-image') === '1'} /> Quitar imagen actual</label>}
+                <p id="campaign-image-status" role="status"></p>
+              </div>
+              <div class="campaign-image-preview" data-current={current?.has_image ? `/campanas/${current.id}.webp` : undefined}>
+                <img src={current?.has_image ? `/campanas/${current.id}.webp` : undefined} alt="Vista previa de la imagen" hidden={!current?.has_image} />
+                <span data-image-empty hidden={Boolean(current?.has_image)}><Icon name="camera" size={20} /> Sin imagen</span>
+              </div>
+            </campaign-image>
+            <fieldset class="admin-field-wide campaign-options">
+              <legend>Visibilidad</legend>
+              <label class="home-check"><input type="checkbox" name="active" value="1" checked={active} /> Mostrar campaña en la portada</label>
+              <label class="home-check"><input type="checkbox" name="sponsored" value="1" checked={sponsored} /> Marcar como publicidad</label>
+              <p class="field-hint">En publicidad, el botón muestra «Ver» seguido del título de la campaña.</p>
+            </fieldset>
           </div>}
         </div>
         <div class="admin-dialog-foot"><a class="button button-outline" href={base} autofocus>Cancelar</a><button class:list={['button', isDelete ? 'admin-danger-button' : 'button-primary']} type="submit">{isDelete ? 'Eliminar campaña' : 'Guardar cambios'}</button></div>
@@ -118,6 +133,59 @@ const sponsored = form ? form.get('sponsored') === '1' : Boolean(current?.sponso
 
 <script>
   import '../../components/admin-dialog';
+
+  class CampaignImage extends HTMLElement {
+    private listeners?: AbortController;
+    private url?: string;
+
+    connectedCallback() {
+      const input = this.querySelector<HTMLInputElement>('input[type="file"]')!;
+      const remove = this.querySelector<HTMLInputElement>('input[name="remove-image"]');
+      const image = this.querySelector('img')!;
+      const empty = this.querySelector<HTMLElement>('[data-image-empty]')!;
+      const status = this.querySelector<HTMLElement>('[role="status"]')!;
+      const current = image.parentElement?.dataset.current ?? '';
+      this.listeners = new AbortController();
+      const { signal } = this.listeners;
+
+      const update = () => {
+        this.revokePreview();
+        const file = input.files?.[0];
+        const invalid = Boolean(file && (!input.accept.split(',').includes(file.type) || file.size > 4 * 1024 * 1024 || !file.size));
+        const error = invalid ? 'Elegí una imagen JPG, PNG o WebP de hasta 4 MB.' : '';
+        input.setCustomValidity(error);
+        if (file && !invalid) this.url = URL.createObjectURL(file);
+        const src = this.url ?? (remove?.checked ? '' : current);
+        if (src) image.src = src;
+        else image.removeAttribute('src');
+        image.hidden = !src;
+        empty.hidden = Boolean(src);
+        status.textContent = error || (this.url ? 'Imagen seleccionada.' : remove?.checked ? 'La imagen actual se quitará al guardar.' : current ? 'Imagen actual.' : '');
+        status.classList.toggle('campaign-image-error', invalid);
+      };
+      input.addEventListener('change', () => {
+        if (remove && input.files?.length) remove.checked = false;
+        update();
+      }, { signal });
+      remove?.addEventListener('change', () => {
+        if (remove.checked) input.value = '';
+        update();
+      }, { signal });
+      update();
+    }
+
+    private revokePreview() {
+      if (this.url) URL.revokeObjectURL(this.url);
+      this.url = undefined;
+    }
+
+    disconnectedCallback() {
+      this.listeners?.abort();
+      this.revokePreview();
+    }
+  }
+
+  customElements.define('campaign-image', CampaignImage);
 </script>
 
 <style>
@@ -130,6 +198,41 @@ const sponsored = form ? form.get('sponsored') === '1' : Boolean(current?.sponso
   .home-settings-list small { display: block; }
   .form-stack label.home-check { display: flex; align-items: center; gap: 8px; }
   .form-stack .home-check input { width: 18px; min-height: 18px; accent-color: var(--primary); }
-  .home-current-image { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
-  .home-current-image img { width: 110px; max-height: 68px; object-fit: cover; border-radius: 6px; }
+  .campaign-dialog { width: min(720px, calc(100% - 26px)); }
+  .campaign-fields { display: grid; grid-template-columns: minmax(0, 1fr) minmax(92px, 120px); gap: 10px; }
+  .campaign-fields textarea { min-height: 68px; }
+  campaign-image { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); align-items: center; gap: 14px; padding: 12px; border: 1px solid var(--line); }
+  .campaign-image-copy { display: grid; gap: 6px; min-width: 0; }
+  .campaign-image-copy > label:first-child { display: flex; align-items: baseline; gap: 6px; }
+  .campaign-image-copy p { color: var(--muted); font-size: .8125rem; }
+  .campaign-image-copy .campaign-image-error { color: var(--error-ink); }
+  .campaign-image-copy [role="status"]:empty { display: none; }
+  .campaign-image-copy input[type="file"] { width: 100%; min-width: 0; font-size: .8125rem; }
+  .campaign-image-copy input::file-selector-button {
+    min-height: 44px;
+    margin-inline-end: 8px;
+    padding-inline: 12px;
+    border: 1px solid var(--primary);
+    border-radius: 5px;
+    background: var(--primary);
+    color: var(--on-primary);
+    font-weight: 700;
+    cursor: pointer;
+  }
+  .campaign-image-copy input:hover::file-selector-button { background: var(--primary-hover); }
+  .campaign-image-preview { display: grid; place-items: center; position: relative; aspect-ratio: 16 / 9; background: var(--subtle); border: 1px solid var(--line); }
+  .campaign-image-preview img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
+  .campaign-image-preview span { display: inline-flex; gap: 6px; align-items: center; color: var(--muted); font-size: .8125rem; }
+  .campaign-image-preview [hidden] { display: none; }
+  .campaign-fields .campaign-options { gap: 6px; }
+  .campaign-options legend { font-size: 1rem; }
+  @media (min-width: 650px) and (pointer: fine) {
+    .campaign-fields { font-size: .875rem; }
+    .campaign-fields :is(input:not([type="file"], [type="checkbox"]), select) { min-height: 40px; }
+    .campaign-fields .campaign-options { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .campaign-options .field-hint { grid-column: 1 / -1; }
+  }
+  @media (max-width: 520px) {
+    campaign-image { grid-template-columns: minmax(0, 1fr); }
+  }
 </style>

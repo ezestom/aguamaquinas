@@ -1,0 +1,96 @@
+---
+import Icon from './Icon.astro';
+---
+
+<section class="listing-preview" id="listing-preview" aria-labelledby="listing-preview-title" tabindex="-1" hidden>
+  <header class="preview-heading">
+    <h2 id="listing-preview-title">Vista previa del aviso</h2>
+    <p>Así se verá la ficha si aprobamos tu aviso.</p>
+  </header>
+  <div class="preview-layout">
+    <div class="preview-gallery">
+      <div class="preview-stage">
+        <img data-main-photo alt="" hidden />
+        <p data-empty-photo><Icon name="camera" size={24} /> Agregá fotos para verlas acá</p>
+      </div>
+      <div class="preview-thumbs" data-preview-thumbs role="group" aria-label="Elegir foto"></div>
+    </div>
+    <div class="detail-copy preview-copy">
+      <p class="eyebrow" data-category></p>
+      <h3 data-title></h3>
+      <p class="card-location" data-location><Icon name="pin" size={16} /><span data-province></span></p>
+      <span class="tag" data-condition></span>
+      <dl>
+        <div><dt>Capacidad</dt><dd data-capacity></dd></div>
+        <div><dt>Formato</dt><dd data-format></dd></div>
+        <div><dt>Marca</dt><dd data-brand></dd></div>
+        <div><dt>Modelo</dt><dd data-model></dd></div>
+      </dl>
+      <p class="detail-price" data-price></p>
+      <p class="field-hint" data-price-error hidden></p>
+      <a class="button button-outline" data-video target="_blank" rel="noopener noreferrer" hidden>
+        <Icon name="play" size={16} /> Ver video <Icon name="external" size={14} />
+      </a>
+      <p class="field-hint" data-video-error hidden>Ingresá un enlace válido de YouTube o Vimeo.</p>
+      <div class="detail-desc">
+        <h4>Sobre el equipo</h4>
+        <p data-description></p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<style>
+  .listing-preview {
+    container-type: inline-size;
+    min-width: 0;
+    padding: 14px;
+    border: 1px solid var(--line);
+    background: var(--subtle);
+    overflow-wrap: anywhere;
+  }
+  .listing-preview [hidden] { display: none; }
+  .preview-heading { margin-bottom: 12px; }
+  .preview-heading h2 { font-size: 1.125rem; font-weight: 700; }
+  .preview-heading p { color: var(--muted); font-size: 0.8125rem; }
+  .preview-layout { display: grid; gap: 12px; }
+  .preview-stage {
+    display: grid;
+    place-items: center;
+    position: relative;
+    aspect-ratio: 4 / 3;
+    border: 1px solid var(--line);
+    background: var(--media-backdrop);
+  }
+  .preview-stage img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
+  .preview-stage p { display: grid; justify-items: center; gap: 6px; padding: 12px; color: var(--muted); text-align: center; }
+  .preview-thumbs {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 4px;
+    margin-top: 6px;
+  }
+  .preview-thumbs:empty { display: none; }
+  .preview-thumbs :global(button) {
+    width: 100%;
+    height: 44px;
+    padding: 2px;
+    border: 2px solid transparent;
+    background: var(--surface);
+  }
+  .preview-thumbs :global(button[aria-pressed="true"]) { border-color: var(--primary); }
+  .preview-thumbs :global(img) { width: 100%; height: 100%; object-fit: cover; }
+  .preview-copy { min-width: 0; padding: 14px; }
+  .preview-copy .eyebrow { font-size: 0.6875rem; }
+  .preview-copy h3 { margin: 4px 0; font-size: 1.25rem; line-height: 1.2; font-weight: 720; }
+  .preview-copy .card-location { margin: 4px 0; font-size: 0.8125rem; }
+  .preview-copy > .tag { margin-block: 6px 0; }
+  .preview-copy dl { gap: 8px; padding-block: 8px; }
+  .preview-copy .detail-price { margin-block: 6px 8px; font-size: 1.125rem; }
+  .preview-copy .button { min-height: 36px; padding: 6px 10px; font-size: 0.8125rem; }
+  .preview-copy .detail-desc { margin-top: 10px; }
+  .detail-desc h4 { font-size: 0.875rem; font-weight: 700; }
+  @container (min-width: 500px) {
+    .preview-layout { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: start; }
+  }
+</style>

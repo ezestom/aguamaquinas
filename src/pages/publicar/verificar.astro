@@ -1,6 +1,7 @@
 ---
 import Layout from '../../layouts/Layout.astro';
 import Icon from '../../components/Icon.astro';
+import PublicationSteps from '../../components/PublicationSteps.astro';
 import { codeSeconds, issueListingCode, listingVerification, verificationCookie,
   verificationSeconds, VerificationError, verifyListingCode } from '../../lib/listing-verification.mjs';
 
@@ -57,13 +58,10 @@ const awaitingCode = verification && !changing && !verification.verified_at;
 <Layout title="Verificá tu email para publicar" page="publicar">
   <div class="wrap interior form-interior verification-flow">
     <a class="back-link" href="/"><Icon name="back" size={18} /> Volver al catálogo</a>
-    <ol class="verification-steps" aria-label="Pasos para publicar">
-      <li aria-current="step"><span>1</span> Verificar email</li>
-      <li><span>2</span> Cargar aviso</li>
-    </ol>
+    <PublicationSteps current={1} />
     <header class="page-heading">
       <h1>{awaitingCode ? 'Ingresá el código' : 'Verificá tu email'}</h1>
-      <p>{awaitingCode ? 'Ingresá los seis dígitos para continuar con tu aviso.' : 'Te mandamos un código de seis dígitos para que puedas cargar tu aviso.'}</p>
+      <p>{awaitingCode ? 'Ingresá los seis dígitos para continuar con tu aviso.' : 'Te mandamos un código de seis dígitos para que puedas cargar tu aviso. Si lo aprobamos tras revisarlo, lo publicamos en el catálogo.'}</p>
     </header>
     <div class="form-card verification-card">
       {error && <p class="message message-error" role="alert">{error}</p>}
@@ -96,11 +94,9 @@ const awaitingCode = verification && !changing && !verification.verified_at;
 
 <style>
   .verification-flow { max-width: 560px; }
-  .verification-steps { display: flex; flex-wrap: wrap; gap: 10px 18px; margin: 0 0 16px; padding: 0; list-style: none; }
-  .verification-steps li { display: inline-flex; align-items: center; gap: 7px; color: var(--muted); font-size: .875rem; font-weight: 650; }
-  .verification-steps span { display: grid; place-items: center; width: 26px; height: 26px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
-  .verification-steps li[aria-current] { color: var(--deep); }
-  .verification-steps li[aria-current] span { color: #fff; background: var(--primary); border-color: var(--primary); }
+  @media (min-width: 900px) {
+    .verification-flow { max-width: 448px; }
+  }
   .verification-card > .message { margin-bottom: 16px; }
   .verification-email { overflow-wrap: anywhere; }
   .verification-recipient { display: flex; align-items: start; gap: 9px; padding: 12px; border-radius: var(--radius); background: var(--subtle); }

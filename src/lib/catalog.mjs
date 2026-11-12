@@ -14,14 +14,22 @@ export function searchTerms(value) {
     .replace(/[^a-z0-9]+/g, ' ').trim().split(/\s+/).filter(Boolean);
 }
 
+export function equipmentReference(value) {
+  const match = /^(AM|EJ)[-\s]?([A-F0-9]{10}|\d{4})$/i.exec(value.trim());
+  return match ? `${match[1].toUpperCase()}-${match[2].toUpperCase()}` : '';
+}
+
 export function matches(machine, params) {
   if (params.get('categoria') && machine.category !== params.get('categoria')) return false;
   if (params.get('provincia') && machine.province !== params.get('provincia')) return false;
   if (params.get('formato') && machine.format !== params.get('formato')) return false;
   if (params.get('estado') && machine.condition !== params.get('estado')) return false;
+  const query = (params.get('q') ?? '').slice(0, 120);
+  const reference = equipmentReference(query);
+  if (reference) return machine.ref === reference;
   const searchable = searchTerms([machine.title, machine.brand, machine.model, machine.ref, machine.ref.replaceAll('-', ''), machine.format_detail,
     formats[machine.format], machine.capacity, machine.province, categories[machine.category], machine.description].join(' '));
-  return searchTerms((params.get('q') ?? '').slice(0, 120)).every(term => searchable.some(word => word.includes(term)));
+  return searchTerms(query).every(term => searchable.some(word => word.includes(term)));
 }
 
 export function priceLabel(machine) {
@@ -30,6 +38,16 @@ export function priceLabel(machine) {
   const number = new Intl.NumberFormat('es-AR');
   const range = machine.price_max > machine.price ? ' a ' + number.format(machine.price_max) : '';
   return `${currency} ${number.format(machine.price)}${range}`;
+}
+
+export function listingPriceError(price, upper) {
+  if ([price, upper].some(value => value && !/^[1-9]\d{0,10}$/.test(value))) {
+    return 'Ingresá importes enteros mayores a cero.';
+  }
+  if (upper && (!price || Number(upper) <= Number(price))) {
+    return 'Para publicar un rango, el máximo tiene que ser mayor que el precio inicial.';
+  }
+  return '';
 }
 
 export function videoLink(input) {

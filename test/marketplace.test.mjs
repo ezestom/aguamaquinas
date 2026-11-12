@@ -118,6 +118,11 @@ test("buscar por capacidad, referencia y provincia", () => {
 		false,
 	);
 	assert.equal(matches(first, new URLSearchParams({ q: "am-1041" })), true);
+	const listing = { ...first, ref: "AM-71F4D6AA10" };
+	assert.equal(matches(listing, new URLSearchParams({ q: "am71f4d6aa10" })), true);
+	assert.equal(matches(listing, new URLSearchParams({ q: "AM 71F4D6AA10" })), true);
+	assert.equal(matches({ ...first, title: "Comparable AM-71F4D6AA10" }, new URLSearchParams({ q: "AM-71F4D6AA10" })), false);
+	assert.equal(matches({ ...first, ref: "EJ-1041" }, new URLSearchParams({ q: "ej1041" })), true);
 });
 
 test("los videos son enlaces seguros y específicos", () => {

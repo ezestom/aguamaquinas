@@ -2,7 +2,7 @@ import sharp from 'sharp';
 import { randomBytes, randomUUID } from 'node:crypto';
 import { closeSync, mkdirSync, openSync, opendirSync, lstatSync, unlinkSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { categories, conditions, formats, provinces, videoLink } from './catalog.mjs';
+import { categories, conditions, formats, listingPriceError, provinces, videoLink } from './catalog.mjs';
 import { dataDir, db } from './db.mjs';
 import { consumeListingVerification, listingVerification } from './listing-verification.mjs';
 import { defaultInquirySource, inquirySource, inquirySources, inquiryTimeframes, validBuyerEmail, validBuyerWhatsApp } from './inquiry-options.mjs';
@@ -31,12 +31,8 @@ export class UploadLimitError extends FormError {
 export function listingPrices(form) {
   const price = text(form, 'price', 32);
   const upper = text(form, 'price_max', 32);
-  if ([price, upper].some(value => value && !/^[1-9]\d{0,10}$/.test(value))) {
-    throw new FormError('Ingresá importes enteros mayores a cero.');
-  }
-  if (upper && (!price || Number(upper) <= Number(price))) {
-    throw new FormError('Para publicar un rango, el máximo tiene que ser mayor que el precio inicial.');
-  }
+  const error = listingPriceError(price, upper);
+  if (error) throw new FormError(error);
   return [price ? Number(price) : null, upper ? Number(upper) : null];
 }
 

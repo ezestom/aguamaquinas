@@ -3,7 +3,7 @@ import Layout from '../layouts/Layout.astro';
 import Icon from '../components/Icon.astro';
 import PanelDialog from '../components/PanelDialog.astro';
 import { adminKey, adminSessionCookie, adminSessionSeconds, createAdminSession, db, hasAdminSession, revokeAdminSession, safeEqual } from '../lib/db.mjs';
-import { categories, priceLabel } from '../lib/catalog.mjs';
+import { categories, equipmentReference, priceLabel } from '../lib/catalog.mjs';
 import { FormError, submitInquiry, text } from '../lib/submissions.mjs';
 import { applyPanelChange, listingStatuses, managedInquiries, managedListings, managedRecord } from '../lib/listing-management.mjs';
 import { inquirySources, inquiryStages, moneyLabel } from '../lib/inquiry-options.mjs';
@@ -117,17 +117,20 @@ const trashed = authorized ? [
   ...managedInquiries(true).map(record => ({ ...record, kind: 'consulta', key: record.id })),
 ].sort((a, b) => b.deleted_at - a.deleted_at) : [];
 const fold = (value: string) => value.toLowerCase().normalize('NFD').replace(/\p{Diacritic}/gu, '');
+const searchedReference = equipmentReference(search);
 const terms = fold(search).split(/\s+/).filter(Boolean);
 const matches = (...values: unknown[]) => {
   const haystack = fold(values.join(' '));
   return terms.every(term => haystack.includes(term));
 };
 const visibleListings = listings.filter(item => (!status || section !== 'avisos' || item.status === status)
-  && matches(item.ref, item.title, item.seller, item.email, item.phone, item.contact, item.locality, item.address, item.province, categories[item.category], item.brand, item.model));
+  && (searchedReference ? item.ref === searchedReference : matches(item.ref, item.title, item.seller, item.email, item.phone, item.contact, item.locality, item.address, item.province, categories[item.category], item.brand, item.model)));
 const visibleInquiries = inquiries.filter(item => (section !== 'consultas' || !status || item.stage === status)
   && Boolean(item.manual) === manualChannel
-  && matches(item.name, item.contact, item.buyer_email, item.buyer_whatsapp, item.message, item.machine_title, item.machine_ref, item.origin, item.location));
-const visibleTrash = trashed.filter(item => matches(item.title, item.name, item.seller, item.ref));
+  && (searchedReference ? item.machine_ref === searchedReference : matches(item.name, item.contact, item.buyer_email, item.buyer_whatsapp, item.message, item.machine_title, item.machine_ref, item.origin, item.location)));
+const visibleTrash = trashed.filter(item => searchedReference
+  ? (item.ref ?? item.machine_ref) === searchedReference
+  : matches(item.title, item.name, item.seller, item.ref));
 const resultCount = section === 'consultas' ? visibleInquiries.length : section === 'papelera' ? visibleTrash.length : visibleListings.length;
 const perPage = 20;
 const totalPages = Math.max(1, Math.ceil(resultCount / perPage));
@@ -196,7 +199,7 @@ const dueBefore = Math.floor(Date.now() / 1000) - availabilitySeconds;
         <form class="admin-filters" action="/panel" method="get" data-panel-filters>
           {section !== 'avisos' && <input type="hidden" name="vista" value={section} />}
           {manualChannel && <input type="hidden" name="canal" value="manual" />}
-          <label class="admin-search"><Icon name="search" size={18} /><span class="visually-hidden">Buscar en {sections[section]}</span><input name="q" value={search} maxlength="100" type="search" placeholder={section === 'consultas' ? 'Buscar por cliente o equipo' : 'Buscar por equipo o vendedor'} /></label>
+          <label class="admin-search"><Icon name="search" size={18} /><span class="visually-hidden">Buscar en {sections[section]}</span><input name="q" value={search} maxlength="100" type="search" placeholder={section === 'consultas' ? 'Buscar por cliente o equipo' : 'Equipo, vendedor o código'} /></label>
           {['avisos', 'consultas'].includes(section) && <label class="admin-filter-status"><span class="visually-hidden">Estado {section === 'avisos' ? 'del aviso' : 'de la consulta'}</span><select name="estado"><option value="">Todos los estados</option>{Object.entries(statuses).map(([id, label]) => <option value={id} selected={id === status}>{label}</option>)}</select></label>}
           <button class="button button-outline" type="submit">Aplicar filtros</button>
           {(search || status) && <a class="admin-clear" href={panelUrl({ q: '', estado: '', pagina: '' })}>Limpiar</a>}

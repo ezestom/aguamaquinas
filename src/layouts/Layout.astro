@@ -6,6 +6,7 @@ import { ClientRouter } from 'astro:transitions';
 import interLatin from '@fontsource-variable/inter/files/inter-latin-wght-normal.woff2?url';
 import '../styles/global.css';
 const { title = 'Maquinaria usada para agua y soda', page = 'catalogo', noindex = false } = Astro.props;
+const compactPage = ['catalogo', 'consulta', 'consulta-equipo', 'publicar'].includes(page);
 const darkModeEnabled = false;
 const source = inquirySource(Astro.url.searchParams.get('origen'));
 const origin = source ? '?' + new URLSearchParams({ origen: source }) : '';
@@ -30,7 +31,7 @@ const origin = source ? '?' + new URLSearchParams({ origen: source }) : '';
     <title>{title} | Agua Máquinas</title>
     <ClientRouter fallback="swap" />
   </head>
-  <body>
+  <body class:list={[compactPage && 'compact-page']}>
     <a class="skip-link" href="#contenido">Ir al contenido</a>
     <header class:list={['topbar', page === 'catalogo' && 'topbar-catalog']}>
       <div class="wrap topbar-inner">
