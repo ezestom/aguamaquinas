@@ -1,0 +1,76 @@
+---
+import Layout from '../layouts/Layout.astro';
+import Icon from '../components/Icon.astro';
+import { db } from '../lib/db.mjs';
+import { inquirySource, validBuyerEmail } from '../lib/inquiry-options.mjs';
+import { text } from '../lib/submissions.mjs';
+import { deliverNotification } from '../lib/mail.mjs';
+
+Astro.response.headers.set('Cache-Control', 'private, no-store');
+const source = inquirySource(Astro.url.searchParams.get('origen'));
+const query = new URLSearchParams(source ? { origen: source } : {});
+const catalog = source ? '/?' + query : '/';
+const sent = Astro.url.searchParams.get('enviado') === '1';
+let message = '';
+let email = '';
+let error = '';
+
+if (Astro.request.method === 'POST') {
+  try {
+    const form = await Astro.request.formData();
+    message = text(form, 'message', 1201);
+    email = text(form, 'email', 255);
+    if (text(form, 'website', 1)) return new Response(null, { status: 400 });
+    if (!message || message.length > 1200) error = 'Escribí un comentario de hasta 1.200 caracteres.';
+    else if (email && (email.length > 254 || !validBuyerEmail(email))) error = 'Ingresá un correo electrónico válido.';
+    if (error) Astro.response.status = 400;
+    else {
+      const connection = db();
+      connection.exec('BEGIN IMMEDIATE');
+      let event: string;
+      try {
+        const { lastInsertRowid } = connection.prepare('INSERT INTO suggestions (message, email) VALUES (?, ?)').run(message, email);
+        event = 'sugerencia/sitio/' + lastInsertRowid;
+        if (process.env.AGUA_NOTIFICATION_EMAIL) {
+          connection.prepare('INSERT INTO notification_outbox (event) VALUES (?)').run(event);
+        }
+        connection.exec('COMMIT');
+      } catch (failure) {
+        connection.exec('ROLLBACK');
+        throw failure;
+      }
+      await deliverNotification(event);
+      query.set('enviado', '1');
+      return Astro.redirect('/sugerencias?' + query, 303);
+    }
+  } catch (failure) {
+    console.error(failure);
+    Astro.response.status = 500;
+    error = 'No se pudo guardar el comentario. Probá de nuevo.';
+  }
+}
+---
+<Layout title="Comentarios sobre el sitio" page="sugerencias">
+  <div class="wrap interior form-interior">
+    <a class="back-link" href={catalog}><Icon name="back" size={18} /> Volver al catálogo</a>
+    <header class="page-heading">
+      <h1>{sent && !error ? 'Gracias por tu comentario' : 'Ayudanos a mejorar'}</h1>
+      {(!sent || error) && <p>Contanos qué te costó encontrar, qué mejorarías o si algo no funcionó bien.</p>}
+    </header>
+    <div class="form-card">
+      {sent && !error ? <p class="message" role="status">Recibimos tu comentario.</p> : <>
+        {error && <p class="message message-error" role="alert">{error}</p>}
+        <form class="form-stack" method="post" data-astro-reload>
+          <label>Tu comentario
+            <textarea name="message" maxlength="1200" required>{message}</textarea>
+          </label>
+          <label>Correo electrónico <small>Opcional, si querés que te respondamos.</small>
+            <input type="email" name="email" maxlength="254" autocomplete="email" value={email} />
+          </label>
+          <div hidden><label>Sitio web<input name="website" tabindex="-1" autocomplete="off" /></label></div>
+          <button class="button button-primary" type="submit">Enviar comentario <Icon name="arrow" size={18} /></button>
+        </form>
+      </>}
+    </div>
+  </div>
+</Layout>

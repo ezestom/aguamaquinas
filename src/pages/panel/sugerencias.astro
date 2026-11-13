@@ -1,0 +1,39 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import Icon from '../../components/Icon.astro';
+import { adminSessionCookie, db, hasAdminSession } from '../../lib/db.mjs';
+import '../../styles/admin.css';
+
+Astro.response.headers.set('Cache-Control', 'private, no-store');
+if (!hasAdminSession(Astro.cookies.get(adminSessionCookie)?.value)) return Astro.redirect('/panel', 303);
+
+const base = '/panel/sugerencias';
+const cursor = Number(Astro.url.searchParams.get('antes'));
+const before = Number.isSafeInteger(cursor) && cursor > 0 ? cursor : null;
+const records = db().prepare(
+  'SELECT id, message, email, created_at FROM suggestions WHERE id < COALESCE(?, 9223372036854775807) ORDER BY id DESC LIMIT 51',
+).all(before);
+const items = records.slice(0, 50);
+const date = new Intl.DateTimeFormat('es-AR', {
+  dateStyle: 'medium', timeStyle: 'short', timeZone: 'America/Argentina/Buenos_Aires',
+});
+---
+<Layout title="Comentarios del sitio" page="panel">
+  <div class="wrap interior admin-workspace">
+    <a class="back-link" href="/panel"><Icon name="back" size={17} /> Volver al panel</a>
+    <header class="admin-header"><h1>Comentarios del sitio</h1></header>
+    <div class="grid gap-4">
+      {items.length === 0 && <p class="message">{before ? 'No hay comentarios anteriores.' : 'Todavía no recibiste comentarios.'}</p>}
+      {items.map(({ message, email, created_at }) => (
+        <article class="form-card">
+          <p class="field-hint">{date.format(new Date(String(created_at).replace(' ', 'T') + 'Z'))}{email && <> · {email}</>}</p>
+          <p class="mt-2 whitespace-pre-wrap wrap-anywhere">{message}</p>
+        </article>
+      ))}
+      <nav class="flex flex-wrap gap-3" aria-label="Páginas de comentarios">
+        {before && <a class="button button-outline" href={base}>Volver a los más recientes</a>}
+        {records.length > items.length && <a class="button button-outline" href={base + '?antes=' + items.at(-1)?.id}>Ver comentarios anteriores</a>}
+      </nav>
+    </div>
+  </div>
+</Layout>

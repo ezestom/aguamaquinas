@@ -20,6 +20,17 @@ for (const key of ['q', 'provincia', 'formato', 'estado']) {
 }
 if (origin) filters.set('origen', origin);
 if (category) filters.set('categoria', category);
+const catalogFilterGroups = [
+  { name: 'provincia', label: 'Provincia', options: [['', 'Todas'], ...provinces.map(province => [province, province])] },
+  { name: 'formato', label: 'Formato', options: [['', 'Todos'], ...Object.entries(formats)] },
+  { name: 'estado', label: 'Estado', options: [['', 'Todos'], ...Object.entries(conditions)] },
+];
+function filterUrl(name: string, value: string) {
+  const next = new URLSearchParams(filters);
+  if (value) next.set(name, value);
+  else next.delete(name);
+  return '/' + (next.size ? '?' + next : '');
+}
 const home = [...filters.keys()].every(key => key === 'origen');
 const assigned = featuredListings();
 const referenceSlots = referenceEquipment.slice(0, featuredLimit - assigned.length);
@@ -92,14 +103,22 @@ const filterCount = ['provincia', 'formato', 'estado'].filter(key => filters.has
           {filterCount > 0 && <span class="filter-count">{filterCount}<span class="sr-only"> {filterCount === 1 ? 'filtro activo' : 'filtros activos'}</span></span>}
           <span class="filter-chevron"><Icon name="next" size={15} /></span>
         </summary>
-        <form action="/" aria-label="Filtros del catálogo" data-catalog-filters>
-          {['categoria', 'q', 'origen'].map(key => filters.has(key) && <input type="hidden" name={key} value={filters.get(key)} />)}
-          <label>Provincia<select name="provincia"><option value="">Todas</option>{provinces.map(province => <option value={province} selected={filters.get('provincia') === province}>{province}</option>)}</select></label>
-          <label>Formato<select name="formato"><option value="">Todos</option>{Object.entries(formats).map(([key, label]) => <option value={key} selected={filters.get('formato') === key}>{label}</option>)}</select></label>
-          <label>Estado<select name="estado"><option value="">Todos</option>{Object.entries(conditions).map(([key, label]) => <option value={key} selected={filters.get('estado') === key}>{label}</option>)}</select></label>
-          <button type="submit" class="button button-outline">Aplicar filtros</button>
-          {filterCount > 0 && <a class="clear-filters" href={`/${reset.size ? `?${reset}` : ''}`}>Limpiar filtros</a>}
-        </form>
+        <div class="catalog-filter-grid" role="group" aria-label="Filtros del catálogo">
+          {catalogFilterGroups.map(({ name, label, options }) => {
+            const active = filters.get(name) ?? '';
+            const selected = options.find(([value]) => value === active)?.[1] ?? options[0][1];
+            return <div class="catalog-filter">
+              <span id={`filter-label-${name}`}>{label}</span>
+              <button type="button" class="catalog-filter-trigger" popovertarget={`filter-${name}`} aria-labelledby={`filter-label-${name} filter-value-${name}`}>
+                <span id={`filter-value-${name}`}>{selected}</span><span aria-hidden="true"><Icon name="next" size={14} /></span>
+              </button>
+              <div id={`filter-${name}`} class="catalog-filter-options" popover>
+                {options.map(([value, text]) => <a href={filterUrl(name, value)} aria-current={active === value ? 'true' : undefined}>{text}{active === value && <Icon name="check" size={15} />}</a>)}
+              </div>
+            </div>;
+          })}
+          <a class:list={['clear-filters', !filterCount && 'clear-filters-inactive']} href={filterCount ? `/${reset.size ? `?${reset}` : ''}` : undefined} aria-hidden={!filterCount || undefined}>Limpiar filtros</a>
+        </div>
       </details>
     </div>
     {machines.length > 0 ? <div class="cards">{machines.map((machine, index) => <MachineCard machine={machine} params={filters} priority={!home && index < 3} />)}</div> : !count && <div class="empty"><Icon name="search" size={32} /><h2>No encontramos equipos con esa búsqueda</h2><p>Probá con otra palabra o contanos qué máquina necesitás.</p><a class="button button-primary" href={inquiryHref}>Pedir un equipo</a></div>}
@@ -107,26 +126,20 @@ const filterCount = ['provincia', 'formato', 'estado'].filter(key => filters.has
   <script>
     import '../components/category-tabs';
     const wideFilters = window.matchMedia('(min-width: 691px)');
-    let changedFilter: string | undefined;
-    const syncFilters = (restoreFocus = false) => {
+    let changedFilter: string | null = null;
+    const syncFilters = () => {
       const box = document.querySelector<HTMLDetailsElement>('.filter-box');
-      const form = box?.querySelector<HTMLFormElement>('[data-catalog-filters]');
-      if (!box || !form) return;
-      const selects = [...form.querySelectorAll('select')];
-      box.open = wideFilters.matches || selects.some(select => select.value !== '') || Boolean(restoreFocus && changedFilter);
-      form.querySelector<HTMLButtonElement>('button[type="submit"]')!.hidden = true;
-      if (restoreFocus) selects.find(select => select.name === changedFilter)?.focus({ preventScroll: true });
+      if (!box) return;
+      box.open = wideFilters.matches || Boolean(box.querySelector('.filter-count')) || Boolean(changedFilter);
     };
     wideFilters.addEventListener('change', () => syncFilters());
     document.addEventListener('astro:after-swap', () => {
-      syncFilters(true);
+      syncFilters();
+      if (changedFilter) document.querySelector<HTMLButtonElement>(`[popovertarget="${changedFilter}"]`)?.focus({ preventScroll: true });
       changedFilter = undefined;
     });
-    document.addEventListener('change', event => {
-      const select = event.target;
-      if (!(select instanceof HTMLSelectElement) || !select.form?.matches('[data-catalog-filters]')) return;
-      changedFilter = select.name;
-      select.form.requestSubmit();
+    document.addEventListener('click', event => {
+      if (event.target instanceof Element) changedFilter = event.target.closest('.catalog-filter-options a')?.parentElement?.id ?? null;
     });
     syncFilters();
   </script>
@@ -134,6 +147,6 @@ const filterCount = ['provincia', 'formato', 'estado'].filter(key => filters.has
 
 <style>
   .catalog-intro {
-    --campaign-fade-edge: color-mix(in srgb, var(--primary) 15%, var(--surface));
+    --campaign-fade-edge: color-mix(in srgb, #c9e7ff 28%, var(--surface));
   }
 </style>

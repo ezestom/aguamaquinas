@@ -1,5 +1,14 @@
 ---
 const { origin } = Astro.props;
+const whatsapp = (import.meta.env.DEV
+	? import.meta.env.AGUA_WHATSAPP_NUMBER
+	: process.env.AGUA_WHATSAPP_NUMBER)?.trim() ?? "";
+const whatsappDigits = whatsapp.replace(/^\+/, "");
+const whatsappUpdates = (import.meta.env.DEV
+	? import.meta.env.AGUA_WHATSAPP_GROUP_URL
+	: process.env.AGUA_WHATSAPP_GROUP_URL)?.trim() ?? "";
+const isWhatsAppGroup = /^https:\/\/chat\.whatsapp\.com\/[a-z0-9]+\/?(?:\?[^\s#]*)?$/i.test(whatsappUpdates);
+const isWhatsAppChannel = /^https:\/\/(?:www\.)?whatsapp\.com\/channel\/[a-z0-9]+\/?(?:\?[^\s#]*)?$/i.test(whatsappUpdates);
 const category = (name: string) => '/?' + new URLSearchParams({ ...Object.fromEntries(new URLSearchParams(origin)), categoria: name });
 const links = [
 	{
@@ -15,16 +24,26 @@ const links = [
 		title: "Ayuda",
 		items: [
 			["Pedir un equipo o consultar", "/consulta" + origin],
+			["Enviar un comentario", "/sugerencias" + origin],
 			["Panel de gestión", "/panel"],
 		],
 	},
 ];
+const whatsappLinks = [
+	...(/^\d{8,15}$/.test(whatsappDigits) ? [["Escribinos al " + whatsapp, "https://wa.me/" + whatsappDigits]] : []),
+	...(isWhatsAppGroup || isWhatsAppChannel
+		? [[isWhatsAppChannel ? "Seguí el canal de nuevos ingresos" : "Sumate al grupo de nuevos ingresos", whatsappUpdates]] : []),
+];
+if (whatsappLinks.length) links.push({ title: "WhatsApp", items: whatsappLinks });
 ---
 
 <footer class="site-footer">
 	<div class="wrap">
 		<div
-			class="footer-grid grid grid-cols-2 gap-x-5 gap-y-5 py-7 lg:grid-cols-[2fr_1fr_1fr] lg:gap-x-8 lg:py-8">
+			class:list={[
+				"footer-grid grid grid-cols-2 gap-x-5 gap-y-5 py-7 lg:gap-x-8 lg:py-8",
+				whatsappLinks.length ? "lg:grid-cols-[1.35fr_1fr_1.2fr_1.4fr]" : "lg:grid-cols-[2fr_1fr_1fr]",
+			]}>
 			<div class="footer-brand col-span-2 sm:col-span-1">
 				<a class="brand" href={"/" + origin}>
 					<img

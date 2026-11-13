@@ -1,0 +1,79 @@
+.assistant-trigger {
+  position: fixed;
+  z-index: 30;
+  top: clamp(76px, calc(var(--assistant-position) - 27px), calc(100% - 70px - env(safe-area-inset-bottom)));
+  right: max(16px, env(safe-area-inset-right));
+  display: grid;
+  place-items: center;
+  width: 54px;
+  height: 54px;
+  border-radius: 50%;
+  color: var(--deep);
+  background:
+    radial-gradient(ellipse at 34% 26%, #f4fbff 0%, transparent 55%),
+    radial-gradient(ellipse at 70% 73%, #c5e2ff 0%, transparent 53%),
+    radial-gradient(ellipse at 42% 43%, #c9e7ff 18%, #a4ccff 60%, #6da3f4 100%);
+  box-shadow: inset 0 0 5px #eff8ffb3, 0 4px 13px #4077c347;
+  cursor: grab;
+  touch-action: none;
+}
+.assistant-trigger:active { cursor: grabbing; }
+.assistant-overlay { position: fixed; inset: 0; z-index: 40; background: #101d3a54; backdrop-filter: blur(3px); }
+.assistant-drawer {
+  position: fixed;
+  z-index: 41;
+  inset: auto 0 0;
+  display: flex;
+  flex-direction: column;
+  width: min(100%, 600px);
+  height: min(44rem, 92dvh);
+  margin-inline: auto;
+  padding: 10px clamp(14px, 4vw, 24px) max(12px, env(safe-area-inset-bottom));
+  border: 1px solid var(--line);
+  border-radius: 24px 24px 0 0;
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: 0 -12px 40px #142c5120;
+  outline: none;
+}
+.assistant-drawer .assistant-handle {
+  flex: none;
+  width: 80px;
+  height: 28px;
+  margin-inline: auto;
+  background: transparent;
+  opacity: 1;
+  cursor: grab;
+  touch-action: none;
+}
+.assistant-drawer .assistant-handle::before {
+  content: "";
+  display: block;
+  width: 40px;
+  height: 4px;
+  margin: 8px auto 0;
+  border-radius: 999px;
+  background: var(--muted);
+}
+.assistant-drawer .assistant-handle:active { cursor: grabbing; }
+.assistant-header { position: relative; display: grid; place-items: center; min-height: 48px; color: var(--primary); }
+.assistant-close { position: absolute; inset-inline-start: 0; display: grid; place-items: center; width: 44px; height: 44px; border-radius: 14px; background: var(--tint); }
+.assistant-transcript { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding-block: 14px; }
+.assistant-starters { display: grid; align-content: end; min-height: 100%; gap: 4px; }
+.assistant-starters button { display: flex; align-items: center; gap: 12px; min-height: 48px; padding: 5px 8px; border-radius: 12px; text-align: start; }
+.assistant-starter-icon { display: grid; flex: none; place-items: center; width: 32px; height: 32px; border-radius: 10px; background: var(--tint); color: var(--primary); }
+.assistant-starter-icon svg { width: 17px; height: 17px; }
+.assistant-starters button:hover { background: var(--subtle); }
+.assistant-close:hover { color: var(--deep); }
+.assistant-bubble { width: fit-content; max-width: 92%; margin-bottom: 10px; padding: 9px 12px; border-radius: 10px; background: var(--subtle); overflow-wrap: anywhere; }
+.assistant-bubble p { white-space: pre-wrap; }
+.assistant-bubble ul { margin-block: 7px; padding-left: 18px; list-style: disc; }
+.assistant-user { margin-left: auto; background: var(--tint); color: var(--deep); }
+.assistant-transcript [role="alert"] { color: var(--error-ink); }
+.assistant-form { display: flex; flex: none; align-items: center; gap: 8px; padding: 5px; border: 1px solid var(--line); border-radius: 999px; box-shadow: 0 4px 12px #142c510e; }
+.assistant-form:focus-within { border-color: var(--primary); }
+.assistant-form input { flex: 1; min-width: 0; min-height: 44px; padding-inline: 12px; border-radius: 999px; background: transparent; outline: none; font-size: 1rem; }
+.assistant-form button { display: grid; flex: none; place-items: center; width: 44px; height: 44px; border-radius: 50%; background: var(--primary); color: white; }
+.assistant-form button:disabled { background: var(--tint); color: var(--muted); cursor: default; }
+.assistant-footer { padding-top: 9px; color: var(--muted); font-size: .75rem; text-align: center; }
+.assistant-drawer a { color: var(--deep); text-decoration: underline; text-underline-offset: 3px; }

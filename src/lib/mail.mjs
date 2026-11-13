@@ -37,6 +37,14 @@ export async function deliverNotification(event, send = sendMail) {
           inquiry.message && `\nMensaje: ${inquiry.message}`, '\n' + panelHint].filter(Boolean).join('\n'),
         replyTo: inquiry.buyer_email || undefined,
       };
+    } else if (type === 'sugerencia') {
+      const suggestion = connection.prepare('SELECT message, email FROM suggestions WHERE id = ?').get(Number(id));
+      if (!suggestion) return;
+      notification = {
+        subject: 'Nuevo comentario sobre Agua Máquinas',
+        text: suggestion.message,
+        replyTo: suggestion.email || undefined,
+      };
     }
     await send({ to, ...notification, event });
     connection.prepare('UPDATE notification_outbox SET sent_at = unixepoch() WHERE event = ?').run(event);

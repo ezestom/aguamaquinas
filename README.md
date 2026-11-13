@@ -20,6 +20,10 @@ Configurá estas variables en el proceso que ejecuta Astro o en el entorno del h
 - `RESEND_API_KEY` contiene la clave privada de envío de Resend.
 - `AGUA_EMAIL_FROM` contiene el remitente de un dominio verificado en Resend, por ejemplo `Agua Máquinas <avisos@tu-dominio.com>`.
 - `AGUA_NOTIFICATION_EMAIL` contiene el email del administrador que recibe las alertas de avisos y consultas.
+- `AGUA_WHATSAPP_NUMBER` es el número de consultas con código de país, sin espacios ni guiones.
+- `AGUA_WHATSAPP_GROUP_URL` admite una invitación a un grupo o un enlace a un canal de WhatsApp para nuevos ingresos. Cada enlace de WhatsApp aparece en el pie cuando su variable está configurada.
+
+Los mensajes de **Enviar un comentario** se guardan en **Panel de gestión → Comentarios del sitio**. Si configuraste el correo de notificaciones, también se envía una alerta.
 
 El código de seis dígitos vence a los 10 minutos y admite cinco intentos. Al verificarlo, el vendedor tiene una hora para cargar un aviso. Los avisos nuevos se guardan en USD, o sin precio si se deja el campo vacío. Los importes históricos conservan su moneda. Los avisos anteriores que sigan pendientes necesitan un nuevo envío con email verificado para aprobarse.
 
@@ -34,6 +38,12 @@ En **Consultas web → Registro manual** podés cargar pedidos de WhatsApp, tel�
 Para medir el piloto, usá `/?origen=sitio-anterior` en los enlaces desde la web anterior y `/?origen=pedro` en los enlaces que Pedro comparta. El origen acompaña la navegación desde el catálogo hasta la consulta. Revisalo en el panel cuando el comprador indique cómo llegó.
 
 En **Gestionar portada** podés editar los banners y asignar hasta cinco avisos publicados a la sección de destacados. Marcá **Patrocinado** cuando corresponda a un acuerdo comercial. Los avisos pausados, vendidos o en la papelera salen de los destacados. Para los banners, cargá una imagen horizontal y elegí el orden, el destino y si querés mostrar la campaña.
+
+## Activar el asistente
+
+Cargá `GROQ_API_KEY` en el `.env` local y reiniciá `npm run dev`. En el hosting, configurá la clave como variable privada del proceso. `GROQ_MODEL` permite elegir otro modelo de Groq que admita respuestas JSON.
+
+El asistente busca en el catálogo público en cada consulta y usa una guía breve de publicación, búsqueda y contacto. Los mensajes necesarios para responder se envían a Groq.
 
 ## Recordatorios de disponibilidad
 

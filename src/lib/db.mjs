@@ -55,6 +55,10 @@ export function db() {
       price_max INTEGER, confirmed_at INTEGER, reminder_attempted_at INTEGER, reminded_at INTEGER
     );
     CREATE TABLE IF NOT EXISTS notification_outbox (event TEXT PRIMARY KEY, sent_at INTEGER);
+    CREATE TABLE IF NOT EXISTS suggestions (
+      id INTEGER PRIMARY KEY, message TEXT NOT NULL, email TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
     CREATE TABLE IF NOT EXISTS panel_trash (
       kind TEXT NOT NULL, record_key TEXT NOT NULL, previous_status TEXT,
       deleted_at INTEGER NOT NULL DEFAULT (unixepoch()), PRIMARY KEY (kind, record_key)

@@ -1,18 +1,19 @@
 ---
 import Icon from '../components/Icon.astro';
 import SiteFooter from '../components/SiteFooter.astro';
+import SiteAssistant from '../components/SiteAssistant.jsx';
 import { inquirySource } from '../lib/inquiry-options.mjs';
 import { ClientRouter } from 'astro:transitions';
 import interLatin from '@fontsource-variable/inter/files/inter-latin-wght-normal.woff2?url';
 import '../styles/global.css';
 const { title = 'Maquinaria usada para agua y soda', page = 'catalogo', noindex = false } = Astro.props;
-const compactPage = ['catalogo', 'consulta', 'consulta-equipo', 'publicar'].includes(page);
+const compactPage = ['catalogo', 'consulta', 'consulta-equipo', 'publicar', 'sugerencias', 'panel-login'].includes(page);
 const darkModeEnabled = false;
 const source = inquirySource(Astro.url.searchParams.get('origen'));
 const origin = source ? '?' + new URLSearchParams({ origen: source }) : '';
 ---
 <!doctype html>
-<html lang="es-AR" transition:animate="none">
+<html lang="es-AR" class:list={[page === 'panel' && 'panel-page']} transition:animate="none">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -33,7 +34,7 @@ const origin = source ? '?' + new URLSearchParams({ origen: source }) : '';
   </head>
   <body class:list={[compactPage && 'compact-page']}>
     <a class="skip-link" href="#contenido">Ir al contenido</a>
-    <header class:list={['topbar', page === 'catalogo' && 'topbar-catalog']}>
+    <header class:list={['topbar', (compactPage || page === 'panel') && 'topbar-compact', page === 'catalogo' && 'topbar-catalog']}>
       <div class="wrap topbar-inner">
         <a class="brand" href={'/' + origin} aria-label="Agua Máquinas, catálogo">
           <img class="brand-icon" src="/agua-logo.webp" alt="" width="40" height="40" />
@@ -54,6 +55,7 @@ const origin = source ? '?' + new URLSearchParams({ origen: source }) : '';
     </header>
     <main id="contenido" transition:animate={page === 'catalogo' ? 'none' : 'fade'}><slot /></main>
     <SiteFooter origin={origin} />
+    {!page.startsWith('panel') && <SiteAssistant client:only="react" />}
     <script>
       let catalogSearchTop: number | undefined;
       const darkMode = () => document.documentElement.dataset.theme === 'dark';

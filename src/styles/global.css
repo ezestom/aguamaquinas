@@ -44,7 +44,8 @@
 	--error-bg: #fcece9;
 	--error-border: #e5b8b2;
 	--error-ink: #7a281d;
-	--radius: 0px;
+	--radius: 6px;
+	--radius-surface: 8px;
 	--shadow-card: 0 2px 10px #14243a12;
 	--shadow-hover: 0 6px 20px #14243a14;
 	--nav-size: 15px;
@@ -368,7 +369,7 @@ textarea::placeholder {
 	padding: 8px 13px;
 	border: 1px solid var(--line);
 	border-bottom: 0;
-	border-radius: var(--radius);
+	border-radius: 0;
 	background: var(--field);
 	color: var(--muted);
 	font-size: var(--nav-size);
@@ -466,6 +467,7 @@ textarea::placeholder {
 	margin-bottom: 20px;
 	padding: 16px;
 	border: 1px solid var(--line);
+	border-radius: var(--radius-surface);
 	background: var(--surface);
 }
 .filter-box summary {
@@ -495,7 +497,7 @@ textarea::placeholder {
 	color: var(--deep);
 	padding-inline: 7px;
 }
-.filter-box form {
+.catalog-filter-grid {
 	display: grid;
 	grid-template-columns: repeat(2, minmax(0, 1fr));
 	gap: 12px;
@@ -513,23 +515,56 @@ textarea::placeholder {
 	display: inline-flex;
 	align-items: center;
 }
-.filter-box label {
+.clear-filters-inactive {
+	visibility: hidden;
+}
+.catalog-filter {
 	display: grid;
 	gap: 4px;
 	min-width: 0;
 }
 .catalog-search > label,
-.filter-box label {
+.catalog-filter {
 	color: var(--muted);
 	font-size: 14px;
 	font-weight: 550;
 }
+.catalog-filter-trigger {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 8px;
+	text-align: start;
+}
+.catalog-filter-trigger > span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.catalog-filter-trigger > span:last-child { flex: none; transform: rotate(90deg); }
+.catalog-filter-trigger:hover { background: var(--field); }
+.catalog-filter-options {
+	position: fixed;
+	inset: auto;
+	position-area: bottom span-right;
+	position-try-fallbacks: flip-block, flip-inline;
+	margin: 5px 0 0;
+	min-width: 172px;
+	max-width: calc(100vw - 24px);
+	max-height: min(280px, 55dvh);
+	overflow: auto;
+	overscroll-behavior: contain;
+	padding: 4px;
+	border: 1px solid var(--line);
+	border-radius: var(--radius-surface);
+	background: var(--surface);
+	color: var(--ink);
+	box-shadow: 0 6px 20px #142c5126;
+}
+.catalog-filter-options a { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 10px; border-radius: var(--radius); font-size: .875rem; text-decoration: none; }
+.catalog-filter-options a:is(:hover, :focus-visible, [aria-current]) { background: var(--tint); color: var(--deep); }
 .form-stack label {
 	display: grid;
 	gap: 5px;
 	font-weight: 650;
 }
-.filter-box select,
+.catalog-filter-trigger,
 .form-stack input:not([type="file"]),
 .form-stack select,
 .form-stack textarea {
@@ -541,7 +576,7 @@ textarea::placeholder {
 	padding: 8px 10px;
 	background: var(--field);
 }
-.filter-box select {
+.catalog-filter-trigger {
 	color: var(--ink);
 	font-weight: 440;
 	font-size: 16px;
@@ -561,7 +596,7 @@ textarea::placeholder {
 	min-width: 0;
 	flex-direction: column;
 	background: var(--surface);
-	border-radius: var(--radius);
+	border-radius: var(--radius-surface);
 	box-shadow: var(--shadow-card);
 	transition: box-shadow 180ms ease, transform 180ms ease;
 	overflow: hidden;
@@ -573,6 +608,7 @@ textarea::placeholder {
 	.machine-card:hover { transform: translateY(-2px); }
 }
 .card-image {
+	border-radius: var(--radius-surface) var(--radius-surface) 0 0;
 	position: relative;
 	display: block;
 	overflow: hidden;
@@ -769,6 +805,9 @@ textarea::placeholder {
 	margin-bottom: 17px;
 	min-height: 38px;
 }
+.form-interior-narrow {
+	max-width: 560px;
+}
 .page-heading {
 	max-width: 740px;
 	margin-bottom: 20px;
@@ -796,7 +835,7 @@ textarea::placeholder {
 .panel-section {
 	background: var(--surface);
 	border: 1px solid var(--line);
-	border-radius: var(--radius);
+	border-radius: var(--radius-surface);
 }
 .thumbs {
 	display: flex;
@@ -1005,7 +1044,7 @@ textarea::placeholder {
 
 @media (min-width: 691px) {
 	.search-input input,
-	.filter-box select {
+	.catalog-filter-trigger {
 		font-size: 14px;
 	}
 	.filter-box > summary {
@@ -1014,14 +1053,17 @@ textarea::placeholder {
 	.filter-box::details-content {
 		content-visibility: visible;
 	}
-	.filter-box form {
+	.catalog-filter-grid {
 		display: flex;
 	}
-	.filter-box label {
+	.catalog-filter {
 		flex: 1;
 	}
 }
 @media (min-width: 900px) {
+	.panel-page {
+		scrollbar-gutter: stable;
+	}
 	.catalog-controls {
 		grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
 		align-items: end;
@@ -1037,27 +1079,28 @@ textarea::placeholder {
 	}
 }
 @media (min-width: 900px) {
-	.compact-page {
+	:is(.compact-page, .topbar-compact) {
 		--nav-size: 0.8125rem;
 	}
 	.compact-page .wrap,
+	.topbar-compact .topbar-inner,
 	.site-footer .wrap {
 		max-width: 1056px;
 	}
 	.compact-page .category-tab {
 		font-size: 0.75rem;
 	}
-	.compact-page .topbar-inner {
+	.topbar-compact .topbar-inner {
 		min-height: 54px;
 	}
-	.compact-page .topbar .brand-icon {
+	.topbar-compact .brand-icon {
 		width: 32px;
 		height: 32px;
 	}
-	.compact-page .topbar .brand strong {
+	.topbar-compact .brand strong {
 		font-size: 0.9375rem;
 	}
-	.compact-page .topbar .brand small {
+	.topbar-compact .brand small {
 		font-size: 0.625rem;
 	}
 	.footer-grid {
@@ -1085,6 +1128,9 @@ textarea::placeholder {
 		width: min(656px, calc(100% - 44px));
 		padding-block: 20px 40px;
 		font-size: 0.875rem;
+	}
+	.compact-page .form-interior-narrow {
+		max-width: 448px;
 	}
 	.compact-page .form-interior .back-link {
 		gap: 6px;
@@ -1143,7 +1189,7 @@ textarea::placeholder {
 		margin-bottom: 16px;
 		padding: 10px 12px;
 	}
-	.catalog-controls :is(label, input, select, .button, .clear-filters) {
+	.catalog-controls :is(label, .catalog-filter, input,.catalog-filter-trigger, .button, .clear-filters) {
 		font-size: 0.8125rem;
 	}
 	.catalog .cards {
@@ -1171,15 +1217,16 @@ textarea::placeholder {
 	}
 }
 @media (min-width: 900px) and (pointer: fine) {
-	.compact-page :is(.top-nav a, .header-cta, .category-tab) {
+	.topbar-compact :is(.top-nav a, .header-cta),
+	.compact-page .category-tab {
 		min-height: 36px;
 		padding: 6px 10px;
 	}
-	.catalog-controls :is(input, select, .button, .clear-filters),
+	.catalog-controls :is(input,.catalog-filter-trigger, .button, .clear-filters),
 	.catalog .card-bottom a {
 		min-height: 36px;
 	}
-	.catalog-controls select {
+	.catalog-filter-trigger {
 		padding-block: 6px;
 	}
 	.footer-grid nav a {
@@ -1240,7 +1287,6 @@ textarea::placeholder {
 	.category-tab {
 		min-height: 44px;
 		padding-inline: 8px;
-		border-radius: var(--radius);
 	}
 	.more-tabs summary::after {
 		margin-left: 6px;
@@ -1258,10 +1304,10 @@ textarea::placeholder {
 	.filter-box {
 		border-top: 1px solid var(--line);
 	}
-	.filter-box form {
+	.catalog-filter-grid {
 		padding: 4px 0 12px;
 	}
-	.filter-box label:first-of-type {
+	.catalog-filter:first-of-type {
 		grid-column: 1 / -1;
 	}
 	.detail-grid {

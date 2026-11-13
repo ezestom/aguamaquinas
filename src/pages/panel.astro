@@ -142,23 +142,27 @@ const date = new Intl.DateTimeFormat('es-AR', { day: 'numeric', month: 'short', 
 const dueBefore = Math.floor(Date.now() / 1000) - availabilitySeconds;
 ---
 
-<Layout title="Panel de Agua Máquinas" page="panel">
-  <div class="wrap interior admin-workspace">
+<Layout title="Panel de Agua Máquinas" page={authorized ? 'panel' : 'panel-login'}>
+  {authorized ? <div class="wrap interior admin-workspace">
     <a class="back-link" href="/"><Icon name="back" size={17} /> Volver al catálogo</a>
-    <header class="admin-header">
+    <header class="admin-header admin-sheet-header">
       <div><h1>Panel de Agua Máquinas</h1><p>Gestioná los equipos, sus vendedores y las consultas desde un mismo lugar.</p></div>
-      {authorized && <div class="admin-header-actions">
+      <div class="admin-header-actions">
         <a class="button button-outline" href="/panel/portada">Gestionar portada</a>
-        <a class="button button-outline" href={section === 'consultas' ? '/panel/consultas.csv?canal=' + (manualChannel ? 'manual' : 'web') : '/panel/avisos.csv'} data-astro-reload download>
+        <a class="button button-outline" href="/panel/sugerencias">Comentarios del sitio</a>
+        <a class="button button-outline admin-export" href={section === 'consultas' ? '/panel/consultas.csv?canal=' + (manualChannel ? 'manual' : 'web') : '/panel/avisos.csv'} data-astro-reload download>
           <Icon name="download" size={17} /> {section === 'consultas' ? 'Exportar consultas' : 'Exportar avisos'}
         </a>
         <form method="post" action="/panel" data-astro-reload><button class="button button-outline" name="action" value="logout">Cerrar sesión</button></form>
-      </div>}
+      </div>
     </header>
 
     {error && !selected && <p class="message message-error admin-feedback" role="alert">{error}</p>}
-    {authorized ? <>
-      {Object.hasOwn(messages, notice) && <p class="message admin-feedback" role="status"><Icon name="check" size={17} /> {messages[notice]}</p>}
+      {Object.hasOwn(messages, notice) && <div class:list={['admin-toast', notice === 'delete' && 'admin-toast-info']} data-panel-toast>
+        <div role="status"><Icon name={notice === 'delete' ? 'trash' : 'check'} size={20} /> <span>{messages[notice]}</span></div>
+        {notice === 'delete' && <a href="/panel?vista=papelera">Ver papelera</a>}
+        <button type="button" aria-label="Cerrar aviso" data-dismiss-toast><Icon name="close" size={16} /></button>
+      </div>}
       {pendingMail > 0 && <form class="admin-mail" method="post" action={panelUrl()} data-astro-reload>
         <p>{pendingMail} {pendingMail === 1 ? 'alerta de correo pendiente' : 'alertas de correo pendientes'}</p>
         <button class="button button-outline" name="action" value="retry-mail">Reintentar envío</button>
@@ -234,7 +238,12 @@ const dueBefore = Math.floor(Date.now() / 1000) - availabilitySeconds;
                       <a class="admin-icon-action admin-publish" href={openDialog('published', 'aviso', item.ref)}
                         aria-label={'Publicar ' + item.title}><Icon name="check" size={17} /> Publicar</a>}
                     <a class="admin-icon-action" href={openDialog(section === 'vendedores' ? 'seller' : 'edit', 'aviso', item.ref)} aria-label={'Editar ' + (section === 'vendedores' ? item.seller || 'vendedor' : item.title)} title="Editar"><Icon name="edit" size={17} /><span>Editar</span></a>
-                    {section === 'avisos' && <a class="admin-icon-action admin-danger-link" href={openDialog('delete', 'aviso', item.ref)} aria-label={'Eliminar ' + item.title} title="Eliminar aviso"><Icon name="trash" size={17} /></a>}
+                    {section === 'avisos' && <>
+                      <button type="button" class="admin-icon-action admin-action-toggle" popovertarget={'acciones-' + item.ref} aria-label={'Más acciones de ' + item.title}><span aria-hidden="true">⌄</span></button>
+                      <div class="admin-action-menu" id={'acciones-' + item.ref} popover>
+                        <a class="admin-danger-link" href={openDialog('delete', 'aviso', item.ref)}><Icon name="trash" size={17} /> Mover a la papelera</a>
+                      </div>
+                    </>}
                   </div></td>
                 </tr>
               ))}
@@ -251,7 +260,10 @@ const dueBefore = Math.floor(Date.now() / 1000) - availabilitySeconds;
                   </td><td>{date.format(new Date(item.created_at.replace(' ', 'T') + 'Z'))}</td>
                   <td><div class="admin-row-actions">
                     <a class="admin-icon-action" href={openDialog('followup', 'consulta', item.id)} aria-label={'Seguimiento de ' + item.name} title="Actualizar seguimiento"><Icon name="edit" size={17} /><span>Seguimiento</span></a>
-                    <a class="admin-icon-action admin-danger-link" href={openDialog('delete', 'consulta', item.id)} aria-label={'Eliminar consulta de ' + item.name} title="Eliminar consulta"><Icon name="trash" size={17} /></a>
+                    <button type="button" class="admin-icon-action admin-action-toggle" popovertarget={'acciones-consulta-' + item.id} aria-label={'Más acciones de ' + item.name}><span aria-hidden="true">⌄</span></button>
+                    <div class="admin-action-menu" id={'acciones-consulta-' + item.id} popover>
+                      <a class="admin-danger-link" href={openDialog('delete', 'consulta', item.id)}><Icon name="trash" size={17} /> Mover a la papelera</a>
+                    </div>
                   </div></td>
                 </tr>
               ))}
@@ -278,16 +290,28 @@ const dueBefore = Math.floor(Date.now() / 1000) - availabilitySeconds;
           </nav>}
         </footer>
       </section>
-    </> : <form method="post" class="form-card form-stack admin-login" data-astro-reload>
+  </div> : <div class="wrap interior form-interior form-interior-narrow">
+    <a class="back-link" href="/"><Icon name="back" size={18} /> Volver al catálogo</a>
+    <header class="page-heading">
+      <h1>Panel de Agua Máquinas</h1>
+      <p>Gestioná los equipos, sus vendedores y las consultas desde un mismo lugar.</p>
+    </header>
+    <form method="post" class="form-card form-stack" data-astro-reload>
+      {error && <p class="message message-error" role="alert">{error}</p>}
       <input type="hidden" name="action" value="login" />
       <label>Clave del panel<input type="password" name="key" required maxlength="250" autocomplete="current-password" /></label>
-      <button type="submit" class="button button-primary">Ingresar</button>
-    </form>}
-  </div>
+      <button type="submit" class="button button-primary">Ingresar <Icon name="arrow" size={18} /></button>
+    </form>
+  </div>}
 </Layout>
 
 <script>
   import '../components/admin-dialog';
+
+  document.addEventListener('click', event => {
+    if (!(event.target instanceof Element)) return;
+    event.target.closest('[data-dismiss-toast]')?.closest('[data-panel-toast]')?.remove();
+  });
 
   let restoreFilterFocus = false;
   document.addEventListener('change', event => {

@@ -56,7 +56,7 @@ if (Astro.request.method === 'POST') {
 const awaitingCode = verification && !changing && !verification.verified_at;
 ---
 <Layout title="Verificá tu email para publicar" page="publicar">
-  <div class="wrap interior form-interior verification-flow">
+  <div class="wrap interior form-interior form-interior-narrow">
     <a class="back-link" href="/"><Icon name="back" size={18} /> Volver al catálogo</a>
     <PublicationSteps current={1} />
     <header class="page-heading">
@@ -93,10 +93,6 @@ const awaitingCode = verification && !changing && !verification.verified_at;
 </Layout>
 
 <style>
-  .verification-flow { max-width: 560px; }
-  @media (min-width: 900px) {
-    .verification-flow { max-width: 448px; }
-  }
   .verification-card > .message { margin-bottom: 16px; }
   .verification-email { overflow-wrap: anywhere; }
   .verification-recipient { display: flex; align-items: start; gap: 9px; padding: 12px; border-radius: var(--radius); background: var(--subtle); }
