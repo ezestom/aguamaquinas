@@ -380,6 +380,12 @@ test("una consulta vinculada guarda los dos contactos y admite un mensaje vacío
 		assert.equal(sent[0].replyTo, "compradora@example.com");
 		assert.match(sent[0].subject, /EJ-1046.*Ozonizador/);
 		assert.match(sent[0].text, /WhatsApp: 0111568641122/);
+		delete process.env.AGUA_NOTIFICATION_EMAIL;
+		await deliverNotification(`confirmacion-${event}`, async (mail) => sent.push(mail));
+		await deliverNotification(`confirmacion-${event}`, async (mail) => sent.push(mail));
+		assert.equal(sent.length, 2);
+		assert.equal(sent[1].to, "compradora@example.com");
+		assert.match(sent[1].text, /Ozonizador.*EJ-1046/);
 	} finally {
 		if (previous === undefined) delete process.env.AGUA_NOTIFICATION_EMAIL;
 		else process.env.AGUA_NOTIFICATION_EMAIL = previous;
@@ -437,7 +443,7 @@ test("el piloto conserva origen, calificación, tiempos y comisión de una consu
 		minutes: "90",
 		commission_currency: "USD",
 		sale_amount: "9000",
-		commission_agreed: "450",
+		commission_agreed: "5%",
 		commission_paid: "450.50",
 		closed_on: "2026-11-10",
 		paid_on: "2026-11-11",
@@ -449,6 +455,7 @@ test("el piloto conserva origen, calificación, tiempos y comisión de una consu
 	});
 	change.set("paid_on", "2026-11-11");
 	applyPanelChange("consulta", key, "followup", change);
+	assert.equal(managedRecord("consulta", key).commission_agreed, 45000);
 	assert.equal(managedRecord("consulta", key).commission_paid, 45050);
 	assert.throws(() => applyPanelChange("consulta", key, "followup", change), {
 		status: 409,
@@ -461,6 +468,18 @@ test("el piloto conserva origen, calificación, tiempos y comisión de una consu
 	assert.match(csv, /"'=1\+1"/);
 	assert.match(csv, /"450,50"/);
 	assert.match(csv, /"2026-11-10";"5";"90"/);
+	const visit = new URLSearchParams({
+		revision: recordRevision(managedRecord("consulta", key)),
+		origin: "Sitio anterior",
+		stage: "visit",
+		sale_amount: "122",
+		commission_agreed: "5%",
+		closed_on: "2026-11-28",
+	});
+	applyPanelChange("consulta", key, "followup", visit);
+	const updated = managedRecord("consulta", key);
+	assert.equal(updated.commission_agreed, 610);
+	assert.equal(updated.minutes, 90);
 });
 
 test("el rango es compatible con precios anteriores y el recordatorio solo vale para el ciclo vigente", async () => {

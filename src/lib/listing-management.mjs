@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import { db } from './db.mjs';
+import { referenceEquipment } from './reference-equipment.mjs';
 import { categories, conditions, formats, provinces, videoLink } from './catalog.mjs';
 import { FormError, listingPrices, text } from './submissions.mjs';
 import { confirmAvailability } from './availability.mjs';
@@ -9,7 +10,7 @@ const listingQuery = `SELECT m.*, c.email, c.phone, c.address, c.locality, c.ver
     FROM machines m LEFT JOIN listing_contacts c ON c.machine_ref = m.ref
     LEFT JOIN listing_details d ON d.machine_ref = m.ref
     LEFT JOIN panel_trash t ON t.kind = 'aviso' AND t.record_key = m.ref WHERE m.sample = 0`;
-const inquiryQuery = `SELECT i.*, coalesce(nullif(i.machine_title_at_submission, ''), m.title) AS machine_title, m.sample, t.deleted_at,
+const inquiryQuery = `SELECT i.*, coalesce(nullif(i.machine_title_at_submission, ''), m.title) AS machine_title, m.sample, m.currency AS listing_currency, t.deleted_at,
     mt.deleted_at AS listing_deleted_at, coalesce(f.stage, 'new') AS stage, f.location, f.budget,
     f.timeframe, f.minutes, f.notes, f.commission_currency, f.sale_amount, f.commission_agreed,
     f.commission_paid, f.closed_on, f.paid_on, coalesce(f.manual, 0) AS manual
@@ -109,12 +110,23 @@ function editInquiry(connection, record, form) {
     .run(name, legacyContact ? contact : '', message, legacyContact ? '' : email, legacyContact ? '' : whatsapp, record.id);
 }
 
-function moneyCents(form, field) {
+function moneyCents(form, field, label) {
   const value = text(form, field, 32);
   if (!value) return null;
-  if (!/^\d{1,11}(?:[.,]\d{1,2})?$/.test(value)) throw new FormError('Ingresá importes válidos, con hasta dos decimales.');
+  if (!/^\d{1,11}(?:[.,]\d{1,2})?$/.test(value)) throw new FormError(`Revisá «${label}». Ingresá un importe como 122 o 122,50.`);
   const [whole, decimal = ''] = value.split(/[.,]/);
   return Number(whole) * 100 + Number(decimal.padEnd(2, '0'));
+}
+
+function agreedCommission(form, sale) {
+  const value = text(form, 'commission_agreed', 32);
+  if (!value.endsWith('%')) return moneyCents(form, 'commission_agreed', 'Comisión acordada');
+
+  const percent = /^(\d{1,3})(?:[.,](\d{1,2}))?\s*%$/.exec(value);
+  const rate = percent ? Number(percent[1]) * 100 + Number((percent[2] ?? '').padEnd(2, '0')) : NaN;
+  if (!Number.isFinite(rate) || rate > 10000) throw new FormError('Ingresá un porcentaje entre 0% y 100%, por ejemplo 5%.');
+  if (sale === null) throw new FormError('Ingresá el importe de venta para calcular la comisión.');
+  return Number((BigInt(sale) * BigInt(rate) + 5000n) / 10000n);
 }
 
 function followupDate(form, field) {
@@ -127,16 +139,23 @@ function followupDate(form, field) {
   return value;
 }
 
+export function followupCurrency(record) {
+  return record.commission_currency || record.listing_currency
+    || referenceEquipment.find(item => item.ref === record.machine_ref)?.currency || '';
+}
+
 function saveFollowup(connection, record, form) {
   const stage = text(form, 'stage', 20);
   const origin = text(form, 'origin', 40);
-  const minutes = text(form, 'minutes', 12);
+  const minutes = form.has('minutes') ? text(form, 'minutes', 12) : String(record.minutes ?? '');
   const timeframe = text(form, 'timeframe', 12);
-  const currency = text(form, 'commission_currency', 12);
-  const sale = moneyCents(form, 'sale_amount');
-  const agreed = moneyCents(form, 'commission_agreed');
-  const paid = moneyCents(form, 'commission_paid');
-  const closedOn = followupDate(form, 'closed_on');
+  const currency = text(form, 'commission_currency', 12) || followupCurrency(record);
+  const sale = moneyCents(form, 'sale_amount', 'Importe de venta');
+  const agreed = agreedCommission(form, sale);
+  const paid = moneyCents(form, 'commission_paid', 'Comisión cobrada');
+  const submittedClose = followupDate(form, 'closed_on');
+  const closedOn = stage === 'closed' ? submittedClose || record.closed_on
+    || new Intl.DateTimeFormat('sv-SE', { timeZone: 'America/Argentina/Buenos_Aires', dateStyle: 'short' }).format(new Date()) : '';
   const paidOn = followupDate(form, 'paid_on');
   if (!Object.hasOwn(inquiryStages, stage) || (origin !== record.origin && origin !== defaultInquirySource
     && !Object.values(inquirySources).includes(origin)) || (timeframe && !Object.hasOwn(inquiryTimeframes, timeframe))) {
@@ -146,7 +165,6 @@ function saveFollowup(connection, record, form) {
   if ((currency && !['USD', 'ARS'].includes(currency)) || ([sale, agreed, paid].some(value => value !== null) && !currency)) {
     throw new FormError('Elegí la moneda de los importes.');
   }
-  if ((stage === 'closed') !== Boolean(closedOn)) throw new FormError('Ingresá la fecha de cierre cuando la consulta esté cerrada.');
   if ((paid !== null && paid <= 0) || (paid !== null) !== Boolean(paidOn) || (paidOn && (!closedOn || paidOn < closedOn))) {
     throw new FormError('Para registrar un cobro, indicá el importe y una fecha igual o posterior al cierre.');
   }

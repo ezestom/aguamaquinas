@@ -17,7 +17,7 @@ const origin = inquirySource(returnQuery.get('origen'));
 if (origin) inquiry.set('origen', origin);
 ---
 <Layout title={machine?.title ?? 'Equipo no disponible'} page="ficha" noindex={!machine || Boolean(machine.reference)}>
-  <div class="wrap interior">
+  <div class="wrap interior equipment-page">
     <a class="back-link" href={back}><Icon name="back" size={18} /> Volver a los resultados</a>
     {machine ? <div class="detail-grid">
       <ProductGallery photos={photos} title={machine.title} />
@@ -27,3 +27,24 @@ if (origin) inquiry.set('origen', origin);
     </div> : <div class="empty"><h1>Equipo no disponible</h1><p>Podés buscar otro equipo o dejarnos un pedido.</p><a class="button button-primary" href={'/consulta' + (inquiry.size ? '?' + inquiry : '')}>Pedir un equipo</a></div>}
   </div>
 </Layout>
+
+<style>
+  @media (width > 690px) {
+    .equipment-page { max-width: 1160px; padding-block: 16px 36px; }
+    .equipment-page .back-link { margin-bottom: 10px; font-size: .875rem; }
+    .equipment-page :global(.detail-copy) { padding: 20px 22px; }
+    .equipment-page :global(.equipment-title) { font-size: clamp(1.625rem, 2.8vw, 2.25rem); line-height: 1.12; }
+    .equipment-page :global(.detail-copy .card-location) { margin-bottom: 4px; }
+    .equipment-page :global(.detail-copy > .tag) { margin-block: 6px; }
+    .equipment-page :global(.detail-copy dl) { gap: 6px 12px; padding-block: 9px; margin-block: 6px 8px; }
+    .equipment-page :global(.detail-copy .detail-price) { font-size: 1.25rem; margin-block: 8px; }
+    .equipment-page :global(.detail-desc) { margin-top: 10px; font-size: .9375rem; }
+    .equipment-page :global(.equipment-description-title) { font-size: 1.0625rem; }
+    .equipment-page :global(.gallery-track) { max-height: clamp(250px, 58dvh, 440px); }
+  }
+
+  @media (width > 690px) and (height <= 760px) {
+    .equipment-page { padding-top: 8px; }
+    .equipment-page :global(.detail-copy) { padding-block: 14px; }
+  }
+</style>

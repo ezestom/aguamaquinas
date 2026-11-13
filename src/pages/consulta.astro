@@ -18,7 +18,8 @@ let error = '';
 if (Astro.request.method === 'POST') {
   try {
     form = await Astro.request.formData();
-    await deliverNotification(submitInquiry(form, reference, origin));
+    const event = submitInquiry(form, reference, origin);
+    await Promise.all([deliverNotification(event), deliverNotification(`confirmacion-${event}`)]);
     const receipt = new URLSearchParams({ enviada: '1' });
     if (reference) receipt.set('equipo', reference);
     if (origin) receipt.set('origen', origin);

@@ -21,6 +21,9 @@ const manualChannel = section === 'consultas' && query.get('canal') === 'manual'
 const requestedStatus = query.get('estado') ?? '';
 const statuses = section === 'consultas' ? inquiryStages : listingStatuses;
 const status = Object.hasOwn(statuses, requestedStatus) ? requestedStatus : '';
+const inboxViews = { hoy: 'Ingresaron hoy', nuevas: 'Sin gestionar', abiertas: 'En seguimiento', cerradas: 'Cerradas' };
+const requestedInbox = query.get('bandeja') ?? '';
+const inbox = section === 'consultas' && Object.hasOwn(inboxViews, requestedInbox) ? requestedInbox : '';
 const search = (query.get('q') ?? '').trim().slice(0, 100);
 const pageNumber = Math.max(1, parseInt(query.get('pagina') ?? '1', 10) || 1);
 const operation = query.get('accion') ?? '';
@@ -35,6 +38,7 @@ function panelUrl(options: Record<string, string | number> = {}) {
   if (manualChannel) params.set('canal', 'manual');
   if (search) params.set('q', search);
   if (['avisos', 'consultas'].includes(section) && status) params.set('estado', status);
+  if (inbox) params.set('bandeja', inbox);
   if (pageNumber > 1) params.set('pagina', String(pageNumber));
   for (const [name, value] of Object.entries(options)) {
     if (value) params.set(name, String(value));
@@ -125,8 +129,21 @@ const matches = (...values: unknown[]) => {
 };
 const visibleListings = listings.filter(item => (!status || section !== 'avisos' || item.status === status)
   && (searchedReference ? item.ref === searchedReference : matches(item.ref, item.title, item.seller, item.email, item.phone, item.contact, item.locality, item.address, item.province, categories[item.category], item.brand, item.model)));
-const visibleInquiries = inquiries.filter(item => (section !== 'consultas' || !status || item.stage === status)
-  && Boolean(item.manual) === manualChannel
+const timeZone = 'America/Argentina/Buenos_Aires';
+const inquiryDate = new Intl.DateTimeFormat('es-AR', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric', timeZone });
+const inquiryTime = new Intl.DateTimeFormat('es-AR', { hour: '2-digit', minute: '2-digit', hourCycle: 'h23', timeZone });
+const today = inquiryDate.format(new Date());
+const receivedAt = (value: string) => new Date(value.replace(' ', 'T') + 'Z');
+const channelInquiries = inquiries.filter(item => Boolean(item.manual) === manualChannel);
+const inboxFilters = {
+  hoy: item => inquiryDate.format(receivedAt(item.created_at)) === today,
+  nuevas: item => item.stage === 'new',
+  abiertas: item => !['new', 'closed', 'lost'].includes(item.stage),
+  cerradas: item => item.stage === 'closed',
+};
+const inboxCounts = Object.fromEntries(Object.entries(inboxFilters).map(([id, filter]) => [id, channelInquiries.filter(filter).length]));
+const visibleInquiries = channelInquiries.filter(item => (!status || item.stage === status)
+  && (!inbox || inboxFilters[inbox](item))
   && (searchedReference ? item.machine_ref === searchedReference : matches(item.name, item.contact, item.buyer_email, item.buyer_whatsapp, item.message, item.machine_title, item.machine_ref, item.origin, item.location)));
 const visibleTrash = trashed.filter(item => searchedReference
   ? (item.ref ?? item.machine_ref) === searchedReference
@@ -184,6 +201,10 @@ const dueBefore = Math.floor(Date.now() / 1000) - availabilitySeconds;
           <a href="/panel?vista=consultas" aria-current={!manualChannel ? 'page' : undefined}>Web ({webCount})</a>
           <a href="/panel?vista=consultas&canal=manual" aria-current={manualChannel ? 'page' : undefined}>Registro manual ({inquiries.length - webCount})</a>
         </nav>}
+        {section === 'consultas' && <nav class="inquiry-inbox" aria-label="Bandejas de consultas">
+          <a href={panelUrl({ bandeja: '', estado: '', pagina: '' })} aria-current={!inbox && !status ? 'page' : undefined}>Todas <span>{channelInquiries.length}</span></a>
+          {Object.entries(inboxViews).map(([id, label]) => <a href={panelUrl({ bandeja: id, estado: '', pagina: '' })} aria-current={inbox === id ? 'page' : undefined}>{label} <span>{inboxCounts[id]}</span></a>)}
+        </nav>}
         {manualChannel && <details class="admin-manual-inquiry" open={Boolean(manualForm)}>
           <summary>Registrar consulta</summary>
           <form class="form-stack" action={panelUrl()} method="post" data-astro-reload>
@@ -203,10 +224,11 @@ const dueBefore = Math.floor(Date.now() / 1000) - availabilitySeconds;
         <form class="admin-filters" action="/panel" method="get" data-panel-filters>
           {section !== 'avisos' && <input type="hidden" name="vista" value={section} />}
           {manualChannel && <input type="hidden" name="canal" value="manual" />}
+          {inbox && <input type="hidden" name="bandeja" value={inbox} />}
           <label class="admin-search"><Icon name="search" size={18} /><span class="visually-hidden">Buscar en {sections[section]}</span><input name="q" value={search} maxlength="100" type="search" placeholder={section === 'consultas' ? 'Buscar por cliente o equipo' : 'Equipo, vendedor o código'} /></label>
           {['avisos', 'consultas'].includes(section) && <label class="admin-filter-status"><span class="visually-hidden">Estado {section === 'avisos' ? 'del aviso' : 'de la consulta'}</span><select name="estado"><option value="">Todos los estados</option>{Object.entries(statuses).map(([id, label]) => <option value={id} selected={id === status}>{label}</option>)}</select></label>}
           <button class="button button-outline" type="submit">Aplicar filtros</button>
-          {(search || status) && <a class="admin-clear" href={panelUrl({ q: '', estado: '', pagina: '' })}>Limpiar</a>}
+          {(search || status || inbox) && <a class="admin-clear" href={panelUrl({ q: '', estado: '', bandeja: '', pagina: '' })}>Limpiar</a>}
         </form>
 
         {resultCount ? <div class="admin-table-scroll" tabindex="0" role="region" aria-label={'Tabla de ' + sections[section].toLowerCase()}>
@@ -214,7 +236,7 @@ const dueBefore = Math.floor(Date.now() / 1000) - availabilitySeconds;
             <thead><tr>
               {section === 'avisos' ? <><th scope="col">Equipo</th><th scope="col">Vendedor</th><th scope="col">Estado</th><th scope="col">Precio</th></>
                 : section === 'vendedores' ? <><th scope="col">Vendedor</th><th scope="col">Equipo</th><th scope="col">Contacto</th><th scope="col">Ubicación</th></>
-                : section === 'consultas' ? <><th scope="col">Cliente</th><th scope="col">Equipo</th><th scope="col">Estado</th><th scope="col">Ingreso</th></>
+                : section === 'consultas' ? <><th scope="col">Cliente</th><th scope="col">Equipo</th><th scope="col">Estado</th><th scope="col">Ingreso <small>Hora argentina</small></th></>
                 : <><th scope="col">Registro</th><th scope="col">Tipo</th><th scope="col">Enviado a la papelera</th></>}
               <th scope="col">Acciones</th>
             </tr></thead>
@@ -257,7 +279,7 @@ const dueBefore = Math.floor(Date.now() / 1000) - availabilitySeconds;
                   <td>{item.machine_title ?? (item.machine_ref || 'Pedido general')}{item.machine_ref && <small>{item.machine_ref}</small>}</td>
                   <td><span class="admin-state" data-status={item.stage}>{inquiryStages[item.stage]}</span>
                     {item.commission_paid != null && <small>Cobrado · {moneyLabel(item.commission_paid, item.commission_currency)}</small>}
-                  </td><td>{date.format(new Date(item.created_at.replace(' ', 'T') + 'Z'))}</td>
+                  </td><td><time datetime={receivedAt(item.created_at).toISOString()}>{inquiryDate.format(receivedAt(item.created_at))}<small>{inquiryTime.format(receivedAt(item.created_at))} h</small></time></td>
                   <td><div class="admin-row-actions">
                     <a class="admin-icon-action" href={openDialog('followup', 'consulta', item.id)} aria-label={'Seguimiento de ' + item.name} title="Actualizar seguimiento"><Icon name="edit" size={17} /><span>Seguimiento</span></a>
                     <button type="button" class="admin-icon-action admin-action-toggle" popovertarget={'acciones-consulta-' + item.id} aria-label={'Más acciones de ' + item.name}><span aria-hidden="true">⌄</span></button>
@@ -279,7 +301,7 @@ const dueBefore = Math.floor(Date.now() / 1000) - availabilitySeconds;
         </div> : <div class="admin-empty">
           <Icon name={section === 'papelera' ? 'trash' : 'list'} size={26} />
           <h2>{search || status ? 'No encontramos coincidencias' : section === 'papelera' ? 'La papelera está vacía' : 'Todavía no hay registros'}</h2>
-          <p>{search || status ? 'Probá con otro término o limpiá los filtros.' : section === 'papelera' ? 'Los avisos y las consultas que elimines aparecerán acá.' : 'Las publicaciones y consultas nuevas aparecerán en su sección.'}</p>
+          <p>{search || status || inbox ? 'Probá con otro término o limpiá los filtros.' : section === 'papelera' ? 'Los avisos y las consultas que elimines aparecerán acá.' : 'Las publicaciones y consultas nuevas aparecerán en su sección.'}</p>
         </div>}
         <footer class="admin-table-footer">
           <p>{resultCount ? (offset + 1) + '–' + Math.min(offset + perPage, resultCount) + ' de ' + resultCount : '0 registros'}</p>
@@ -331,6 +353,10 @@ const dueBefore = Math.floor(Date.now() / 1000) - availabilitySeconds;
   .inquiry-channels { display: flex; flex-wrap: wrap; gap: 6px 14px; padding: 8px 18px 0; font-size: .875rem; }
   .inquiry-channels a { display: inline-flex; align-items: center; min-height: 38px; color: var(--muted); }
   .inquiry-channels a[aria-current] { color: var(--deep); font-weight: 700; text-decoration: underline; text-underline-offset: 3px; }
+  .inquiry-inbox { display: flex; flex-wrap: wrap; gap: 6px; padding: 4px 18px; }
+  .inquiry-inbox a { display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 4px 10px; border: 1px solid var(--line); border-radius: var(--radius); color: var(--muted); font-size: .8125rem; text-decoration: none; }
+  .inquiry-inbox a:is(:hover, [aria-current]) { border-color: var(--field-border); background: var(--tint); color: var(--deep); }
+  .inquiry-inbox span { font-weight: 700; font-variant-numeric: tabular-nums; }
   .admin-manual-inquiry { padding: 0 18px 10px; }
   .admin-manual-inquiry summary { color: var(--deep); font-weight: 650; cursor: pointer; width: fit-content; }
   .admin-manual-inquiry form { margin-top: 12px; }

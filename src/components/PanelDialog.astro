@@ -5,7 +5,7 @@ import EquipmentDetails from './EquipmentDetails.astro';
 import ProductGallery from './ProductGallery.astro';
 import { categories, conditions, formats, provinces, priceLabel } from '../lib/catalog.mjs';
 import { getPhotos } from '../lib/db.mjs';
-import { listingStatuses, recordRevision } from '../lib/listing-management.mjs';
+import { followupCurrency, listingStatuses, recordRevision } from '../lib/listing-management.mjs';
 import { defaultInquirySource, inquirySources, inquiryStages, inquiryTimeframes, moneyInput, moneyLabel } from '../lib/inquiry-options.mjs';
 
 const { record, kind, operation, closeUrl, actionUrl, error, submitted, link } = Astro.props;
@@ -37,6 +37,8 @@ const amountFields = [
   ['sale_amount', 'Importe de venta'], ['commission_agreed', 'Comisión acordada'], ['commission_paid', 'Comisión cobrada'],
 ];
 const formatDate = new Intl.DateTimeFormat('es-AR', { dateStyle: 'medium', timeZone: 'America/Argentina/Buenos_Aires' });
+const formatReceived = new Intl.DateTimeFormat('es-AR', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'America/Argentina/Buenos_Aires' });
+const currency = value('commission_currency') || followupCurrency(record);
 ---
 <dialog open class:list={['admin-dialog', { 'admin-dialog-wide': edit || operation === 'view', 'admin-dialog-preview': publishing }]} aria-labelledby="panel-dialog-title" data-panel-dialog>
   <div class="admin-dialog-head">
@@ -72,7 +74,6 @@ const formatDate = new Intl.DateTimeFormat('es-AR', { dateStyle: 'medium', timeZ
           <div><dt>Localidad y provincia</dt><dd>{record.location || '—'}</dd></div>
           <div><dt>Presupuesto</dt><dd>{record.budget || '—'}</dd></div>
           <div><dt>Plazo</dt><dd>{inquiryTimeframes[record.timeframe] || '—'}</dd></div>
-          <div><dt>Tiempo de gestión</dt><dd>{record.minutes == null ? '—' : record.minutes + ' min'}</dd></div>
           {record.sale_amount != null && <div><dt>Importe de venta</dt><dd>{moneyLabel(record.sale_amount, record.commission_currency)}</dd></div>}
           {record.commission_agreed != null && <div><dt>Comisión acordada</dt><dd>{moneyLabel(record.commission_agreed, record.commission_currency)}</dd></div>}
           <div><dt>Comisión cobrada</dt><dd>{moneyLabel(record.commission_paid, record.commission_currency)}</dd></div>
@@ -124,23 +125,31 @@ const formatDate = new Intl.DateTimeFormat('es-AR', { dateStyle: 'medium', timeZ
         <label class="admin-field-wide">Mensaje<textarea name="message" maxlength="1200" required={!record.machine_ref || Boolean(record.manual)}>{value('message')}</textarea></label>
       </div>}
       {operation === 'followup' && <div class="form-stack">
-        <fieldset><legend>Seguimiento</legend><div class="admin-fields">
+        <div class="followup-context">
+          <strong>{record.machine_title || record.machine_ref || 'Pedido general'}</strong>
+          <p>{[formatReceived.format(new Date(record.created_at.replace(' ', 'T') + 'Z')), record.origin].filter(Boolean).join(' · ')}</p>
+          <p>{[record.buyer_whatsapp, record.buyer_email, legacyContact && record.contact].filter(Boolean).join(' · ')}</p>
+          {record.message && <p class="followup-message">{record.message}</p>}
+        </div>
+        <div class="admin-fields">
           <label>Estado<select name="stage" required>{Object.entries(inquiryStages).map(([id, label]) =>
             <option value={id} selected={value('stage') === id}>{label}</option>)}</select></label>
+          <label class="admin-field-wide">Notas internas<textarea name="notes" rows="2" maxlength="2000" placeholder="Ej. próxima llamada o condiciones acordadas.">{value('notes')}</textarea></label>
+        </div>
+        <details class="followup-extra"><summary>Datos opcionales</summary><div class="admin-fields">
           <label>Origen<select name="origin" required>{sources.map(source =>
             <option value={source} selected={value('origin') === source}>{source}</option>)}</select></label>
           <InquiryCriteria value={value} />
-          <label>Tiempo total de gestión (minutos)<input name="minutes" type="number" min="0" max="99999" step="1" value={value('minutes')} /></label>
-          <label class="admin-field-wide">Notas internas<textarea name="notes" maxlength="2000" placeholder="Ej. condiciones acordadas, próxima llamada o motivo de pérdida.">{value('notes')}</textarea></label>
-        </div></fieldset>
-        <fieldset><legend>Cierre y comisión</legend><div class="admin-fields">
-          <label>Fecha de cierre <small>Al marcar Cerrada</small><input name="closed_on" type="date" value={value('closed_on')} /></label>
-          <label>Moneda<select name="commission_currency"><option value="">Sin definir</option>{['USD', 'ARS'].map(currency =>
-            <option value={currency} selected={value('commission_currency') === currency}>{currency}</option>)}</select></label>
-          {amountFields.map(([field, label]) => <label>{label}<input name={field} inputmode="decimal" maxlength="14"
+        </div></details>
+        <details class="followup-extra" open={Boolean(error)}><summary>Cierre y comisión</summary><div class="admin-fields">
+          <label>Fecha de cierre <small>Se completa al marcar Cerrada</small><input name="closed_on" type="date" value={value('closed_on')} /></label>
+          <label>Moneda<select name="commission_currency"><option value="">Sin definir</option>{['USD', 'ARS'].map(option =>
+            <option value={option} selected={currency === option}>{option}</option>)}</select></label>
+          {amountFields.map(([field, label]) => <label>{label}<input name={field} inputmode={field === 'commission_agreed' ? 'text' : 'decimal'} maxlength="14"
+            placeholder={field === 'commission_agreed' ? 'Ej. 5% o 100' : undefined}
             value={submitted?.get(field) ?? moneyInput(record[field])} /></label>)}
           <label>Fecha de cobro<input name="paid_on" type="date" value={value('paid_on')} /></label>
-        </div></fieldset>
+        </div></details>
       </div>}
       {publishing && <div class="detail-grid admin-publish-preview">
         <ProductGallery photos={getPhotos(record)} title={record.title} preview />
@@ -155,4 +164,20 @@ const formatDate = new Intl.DateTimeFormat('es-AR', { dateStyle: 'medium', timeZ
     </div>
   </form>}
 </dialog>
+
+<style>
+  .followup-context { display: grid; gap: 4px; font-size: .875rem; color: var(--muted); }
+  .followup-context strong { color: var(--ink); }
+  .followup-message { white-space: pre-line; }
+  .followup-extra { border-top: 1px solid var(--line); padding-top: 8px; }
+  .followup-extra summary { color: var(--deep); font-size: .875rem; font-weight: 650; cursor: pointer; }
+  .followup-extra .admin-fields { margin-top: 10px; }
+  textarea[name="notes"] {
+    field-sizing: content;
+    min-height: 72px;
+    max-height: 40dvh;
+    resize: none;
+    overflow-y: auto;
+  }
+</style>
 

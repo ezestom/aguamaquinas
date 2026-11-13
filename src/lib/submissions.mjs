@@ -200,7 +200,8 @@ export function submitInquiry(form, ref, origin, manual = false) {
     connection.prepare('INSERT INTO inquiry_followups (inquiry_id, location, budget, timeframe, manual) VALUES (?, ?, ?, ?, ?)')
       .run(id, text(form, 'location', 100), text(form, 'budget', 80), timeframe, Number(manual));
     const event = `consulta/${ref || 'general'}/${id}`;
-    if (!manual) connection.prepare('INSERT INTO notification_outbox (event) VALUES (?)').run(event);
+    if (!manual) connection.prepare('INSERT INTO notification_outbox (event) VALUES (?), (?)')
+      .run(event, `confirmacion-${event}`);
     connection.exec('COMMIT');
     return event;
   } catch (error) {

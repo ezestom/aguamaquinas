@@ -13,22 +13,38 @@ export async function sendMail({ to, subject, text, event, replyTo }) {
 }
 
 export async function deliverNotification(event, send = sendMail) {
-  const to = process.env.AGUA_NOTIFICATION_EMAIL;
-  if (!to) return;
+  const adminEmail = process.env.AGUA_NOTIFICATION_EMAIL;
+  const [type, reference, id] = event.split('/');
+  const receipt = type === 'confirmacion-consulta';
+  if (!receipt && !adminEmail) return;
   try {
     const connection = db();
     if (!connection.prepare('SELECT 1 FROM notification_outbox WHERE event = ? AND sent_at IS NULL').get(event)) return;
-    const [type, reference, id] = event.split('/');
+    let to = adminEmail;
     const panelHint = 'Ingresá a Consultas web en el panel de Agua Máquinas para hacer el seguimiento.';
     let notification = { subject: `Nuevo aviso para revisar · ${reference}`,
       text: 'Ingresá al panel de Agua Máquinas para revisar el aviso.' };
-    if (type === 'consulta') {
+    if (type === 'consulta' || receipt) {
       const inquiry = connection.prepare(`SELECT i.*, m.title AS current_title FROM inquiries i
         LEFT JOIN machines m ON m.ref = i.machine_ref WHERE i.id = ?`).get(Number(id));
       if (!inquiry) return;
       const title = inquiry.machine_title_at_submission || inquiry.current_title || 'Pedido general';
       const equipment = inquiry.machine_ref ? `${inquiry.machine_ref} · ${title}` : title;
-      notification = {
+      if (receipt) {
+        if (!inquiry.buyer_email) return;
+        to = inquiry.buyer_email;
+        notification = {
+          subject: 'Recibimos tu consulta | Agua Máquinas',
+          text: [
+            'Hola,',
+            inquiry.machine_ref ? `Recibimos tu consulta por el equipo «${title}» (ref. ${inquiry.machine_ref}).`
+              : 'Recibimos tu consulta sobre el equipo que estás buscando.',
+            'Nuestro equipo va a revisar tu pedido. En breve nos pondremos en contacto con vos por WhatsApp o correo electrónico para ayudarte con los próximos pasos.',
+            'Gracias por escribirnos.\nEquipo de Agua Máquinas',
+          ].join('\n\n'),
+          replyTo: adminEmail || undefined,
+        };
+      } else notification = {
         subject: `Nueva consulta web · ${equipment.replace(/[\r\n]+/g, ' ')}`,
         text: [`Equipo: ${equipment}`, `Nombre: ${inquiry.name}`,
           inquiry.buyer_whatsapp && `WhatsApp: ${inquiry.buyer_whatsapp}`,
@@ -54,6 +70,8 @@ export async function deliverNotification(event, send = sendMail) {
 }
 
 export async function retryNotifications() {
-  const pending = db().prepare('SELECT event FROM notification_outbox WHERE sent_at IS NULL ORDER BY rowid LIMIT 5').all();
+  const pending = db().prepare(`SELECT event FROM notification_outbox WHERE sent_at IS NULL
+    AND (? OR event LIKE 'confirmacion-consulta/%') ORDER BY rowid LIMIT 5`)
+    .all(Number(Boolean(process.env.AGUA_NOTIFICATION_EMAIL)));
   await Promise.all(pending.map(({ event }) => deliverNotification(event)));
 }

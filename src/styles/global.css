@@ -380,7 +380,7 @@ textarea::placeholder {
 	padding: 8px 13px;
 	border: 1px solid var(--line);
 	border-bottom: 0;
-	border-radius: 0;
+	border-radius: 8% 8% 0 0 / 20% 20% 0 0;
 	background: var(--field);
 	color: var(--muted);
 	font-size: var(--nav-size);
