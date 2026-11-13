@@ -71,8 +71,9 @@ export function deleteCampaign(id) {
 }
 
 export function featuredListings() {
-  return db().prepare(`SELECT m.*, d.price_max, f.position AS featured_position, f.sponsored
+  return db().prepare(`SELECT m.*, d.price_max, c.locality, f.position AS featured_position, f.sponsored
     FROM home_featured f JOIN machines m ON m.ref = f.machine_ref LEFT JOIN listing_details d ON d.machine_ref = m.ref
+    LEFT JOIN listing_contacts c ON c.machine_ref = m.ref
     WHERE m.status = 'published' AND m.sample = 0 ORDER BY f.position LIMIT ?`).all(featuredLimit);
 }
 
@@ -82,7 +83,6 @@ export function saveFeatured(form) {
     const position = index + 1;
     return { position, ref: text(form, 'ref-' + position, 32), sponsored: Number(form.get('sponsor-' + position) === '1') };
   }).filter(item => item.ref);
-  if (new Set(choices.map(item => item.ref)).size !== choices.length) throw new FormError('Elegí un aviso distinto en cada lugar.');
   connection.exec('BEGIN IMMEDIATE');
   try {
     const allowed = connection.prepare(`SELECT 1 FROM machines WHERE ref = ? AND sample = 0 AND (status = 'published'

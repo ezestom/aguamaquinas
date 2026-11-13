@@ -38,7 +38,8 @@ const featured = Array.from({ length: featuredLimit }, (_, index) =>
   assigned.find(machine => machine.featured_position === index + 1) ?? referenceSlots.shift()
 ).filter(Boolean);
 const featuredRefs = new Set(home ? featured.map(machine => machine.ref) : []);
-const publicListings = db().prepare(`SELECT m.*, d.price_max FROM machines m LEFT JOIN listing_details d ON d.machine_ref = m.ref
+const publicListings = db().prepare(`SELECT m.*, d.price_max, c.locality FROM machines m LEFT JOIN listing_details d ON d.machine_ref = m.ref
+  LEFT JOIN listing_contacts c ON c.machine_ref = m.ref
   WHERE m.status = 'published' AND m.sample = 0 ORDER BY m.id DESC`)
   .all();
 const published = publicListings.filter(machine => matches(machine, filters));

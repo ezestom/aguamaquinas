@@ -79,7 +79,7 @@ const sponsored = form ? form.get('sponsored') === '1' : Boolean(current?.sponso
       </ol>
     </section>
 
-    {(isCampaign || isFeatured || isDelete) && <dialog open class:list={['admin-dialog', !isDelete && 'admin-dialog-wide', isCampaign && 'campaign-dialog']} data-panel-dialog aria-labelledby="home-settings-dialog">
+    {(isCampaign || isFeatured || isDelete) && <dialog open class:list={['admin-dialog', !isDelete && 'admin-dialog-wide', isCampaign && 'campaign-dialog', isFeatured && 'featured-dialog']} data-panel-dialog aria-labelledby="home-settings-dialog">
       <div class="admin-dialog-head">
         <span class:list={['admin-dialog-icon', isDelete && 'admin-danger-icon']}><Icon name={isDelete ? 'trash' : current || isFeatured ? 'edit' : 'plus'} size={22} /></span>
         <div><h2 id="home-settings-dialog">{isDelete ? 'Eliminar campaña' : isFeatured ? 'Editar destacados' : current ? 'Editar campaña' : 'Nueva campaña'}</h2>{isDelete && <p>{current.title}</p>}</div>
@@ -92,7 +92,7 @@ const sponsored = form ? form.get('sponsored') === '1' : Boolean(current?.sponso
             const selected = String(form?.get('ref-' + slot.position) ?? slot.machine_ref ?? '');
             return <fieldset>
               <legend>Lugar {slot.position}</legend>
-              <label>Equipo <select name={'ref-' + slot.position}><option value="">Sin equipo</option>
+              <label>Equipo <select name={'ref-' + slot.position}><option value="" selected={!selected}>Sin equipo</option>
                 {slot.machine_ref && !published.some(item => item.ref === slot.machine_ref) && <option value={slot.machine_ref} selected={slot.machine_ref === selected}>{slot.title} (fuera del catálogo)</option>}
                 {published.map(item => <option value={item.ref} selected={item.ref === selected}>{item.title} · {item.ref}</option>)}
               </select></label>
@@ -198,6 +198,17 @@ const sponsored = form ? form.get('sponsored') === '1' : Boolean(current?.sponso
   .home-settings-list small { display: block; }
   .form-stack label.home-check { display: flex; align-items: center; gap: 8px; }
   .form-stack .home-check input { width: 18px; min-height: 18px; accent-color: var(--primary); }
+  .featured-dialog { width: min(560px, calc(100% - 26px)); }
+  .featured-dialog .admin-dialog-body { gap: 8px; padding-block: 10px; font-size: .875rem; }
+  .featured-dialog fieldset { gap: 6px; padding: 6px 10px 8px; }
+  .featured-dialog legend { font-size: .875rem; }
+  .featured-dialog :is(.admin-dialog-head, .admin-dialog-foot) { padding-block: 10px; }
+  @media (min-width: 600px) and (pointer: fine) {
+    .featured-dialog fieldset { grid-template-columns: minmax(0, 1fr) max-content; align-items: end; column-gap: 14px; }
+    .featured-dialog .home-check { min-height: 36px; }
+    .featured-dialog :is(select, .admin-dialog-foot .button) { min-height: 36px; padding: 6px 10px; }
+    .featured-dialog .admin-dialog-foot .button { font-size: var(--nav-size); }
+  }
   .campaign-dialog { width: min(720px, calc(100% - 26px)); }
   .campaign-fields { display: grid; grid-template-columns: minmax(0, 1fr) minmax(92px, 120px); gap: 10px; }
   .campaign-fields textarea { min-height: 68px; }

@@ -1,5 +1,10 @@
 @import "tailwindcss" source("../");
 
+::view-transition-group(equipment-photo) {
+	animation-duration: 420ms;
+	animation-timing-function: cubic-bezier(.22, 1, .36, 1);
+}
+
 @font-face {
 	font-family: "Inter";
 	font-style: normal;
@@ -33,6 +38,12 @@
 	--band-hover: #d7e5fc;
 	--media-backdrop: #e6ecf5;
 	--on-primary: #fff;
+	--blue-disc-ink: #0e3191;
+	--blue-disc-fill:
+		radial-gradient(ellipse at 34% 26%, #f4fbff 0%, transparent 55%),
+		radial-gradient(ellipse at 70% 73%, #c5e2ff 0%, transparent 53%),
+		radial-gradient(ellipse at 42% 43%, #c9e7ff 18%, #a4ccff 60%, #6da3f4 100%);
+	--blue-disc-shadow: inset 0 0 5px #eff8ffb3, 0 4px 13px #4077c347;
 	--primary-hover: #0e3191;
 	--tag-neutral: #f4f7f8;
 	--tag-neutral-ink: #37465b;
@@ -677,26 +688,6 @@ textarea::placeholder {
 	color: var(--muted);
 	margin-bottom: 20px;
 }
-.card-specs {
-	display: grid;
-	grid-template-columns: 1fr 1fr;
-	gap: 8px;
-	padding-block: 0 12px;
-	margin-top: auto;
-}
-.card-specs small,
-.card-specs strong {
-	display: block;
-}
-.card-specs small {
-	color: var(--muted);
-	font-size: 14px;
-}
-.card-specs strong {
-	font-size: 15px;
-	font-weight: 550;
-	overflow-wrap: anywhere;
-}
 .card-bottom {
 	display: flex;
 	align-items: center;
@@ -711,19 +702,6 @@ textarea::placeholder {
 	font-weight: 600;
 	line-height: 1.2;
 	letter-spacing: -0.018em;
-}
-.card-bottom a {
-	display: inline-flex;
-	align-items: center;
-	gap: 5px;
-	min-height: 44px;
-	color: var(--deep);
-	font-size: 15px;
-	font-weight: 600;
-	text-decoration: none;
-}
-.card-bottom a:hover {
-	text-decoration: underline;
 }
 .empty {
 	padding: 34px;
@@ -1200,20 +1178,10 @@ textarea::placeholder {
 		padding: 16px;
 	}
 	.catalog .card-body h3 {
-		margin-block: 6px;
 		font-size: 1rem;
 	}
-	.catalog :is(.card-meta, .card-location, .card-specs small, .card-specs strong, .card-bottom a) {
-		font-size: 0.8125rem;
-	}
 	.catalog .card-location {
-		margin-bottom: 14px;
-	}
-	.catalog .card-specs {
-		padding-bottom: 8px;
-	}
-	.catalog .card-bottom {
-		margin-top: 6px;
+		font-size: 0.8125rem;
 	}
 }
 @media (min-width: 900px) and (pointer: fine) {
@@ -1222,8 +1190,7 @@ textarea::placeholder {
 		min-height: 36px;
 		padding: 6px 10px;
 	}
-	.catalog-controls :is(input,.catalog-filter-trigger, .button, .clear-filters),
-	.catalog .card-bottom a {
+	.catalog-controls :is(input,.catalog-filter-trigger, .button, .clear-filters) {
 		min-height: 36px;
 	}
 	.catalog-filter-trigger {
@@ -1325,9 +1292,6 @@ textarea::placeholder {
 	}
 	.card-body {
 		padding-inline: 15px;
-	}
-	.card-bottom a {
-		min-height: 42px;
 	}
 }
 @media (max-width: 420px) {

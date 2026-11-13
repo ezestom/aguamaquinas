@@ -70,7 +70,7 @@ export function db() {
       sponsored INTEGER NOT NULL DEFAULT 0 CHECK(sponsored IN (0, 1))
     );
     CREATE TABLE IF NOT EXISTS home_featured (
-      position INTEGER PRIMARY KEY, machine_ref TEXT NOT NULL UNIQUE,
+      position INTEGER PRIMARY KEY, machine_ref TEXT NOT NULL,
       sponsored INTEGER NOT NULL CHECK(sponsored IN (0, 1))
     );
   `);
@@ -82,11 +82,24 @@ export function db() {
     ['inquiries', 'machine_title_at_submission', "TEXT NOT NULL DEFAULT ''"],
   ];
   const hasColumn = connection.prepare('SELECT 1 FROM pragma_table_info(?) WHERE name = ?');
-  if (columns.some(([table, column]) => !hasColumn.get(table, column))) {
+  const hasFeaturedUnique = connection.prepare("SELECT 1 FROM pragma_index_list('home_featured') WHERE origin = 'u'");
+  if (hasFeaturedUnique.get() || columns.some(([table, column]) => !hasColumn.get(table, column))) {
     connection.exec('BEGIN IMMEDIATE');
     try {
       for (const [table, column, definition] of columns) {
         if (!hasColumn.get(table, column)) connection.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+      }
+      if (hasFeaturedUnique.get()) {
+        connection.exec(`
+          CREATE TABLE home_featured_new (
+            position INTEGER PRIMARY KEY, machine_ref TEXT NOT NULL,
+            sponsored INTEGER NOT NULL CHECK(sponsored IN (0, 1))
+          );
+          INSERT INTO home_featured_new (position, machine_ref, sponsored)
+            SELECT position, machine_ref, sponsored FROM home_featured;
+          DROP TABLE home_featured;
+          ALTER TABLE home_featured_new RENAME TO home_featured;
+        `);
       }
       connection.exec('COMMIT');
     } catch (error) {

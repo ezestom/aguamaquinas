@@ -36,7 +36,7 @@ const slides = await Promise.all(photos.map(async (src) => {
           <a id={`foto-${index + 1}`} class="gallery-slide" href={src} data-astro-reload target={preview ? '_blank' : undefined} rel={preview ? 'noopener noreferrer' : undefined}
             data-pswp-width={width} data-pswp-height={height}
             aria-label={`Ampliar foto ${index + 1} de ${slides.length}`}>
-            <img src={src} width={width} height={height} alt={`Foto ${index + 1} de ${title}`}
+            <img data-equipment-photo={!preview && index === 0 || undefined} src={src} width={width} height={height} alt={`Foto ${index + 1} de ${title}`}
               loading={index === 0 ? 'eager' : 'lazy'} fetchpriority={index === 0 ? 'high' : undefined} decoding="async" />
           </a>
         ))}

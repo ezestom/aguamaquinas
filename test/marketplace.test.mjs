@@ -644,9 +644,10 @@ test("la portada ordena sus campañas y solo destaca avisos publicados", async (
 	saveFeatured(new URLSearchParams({ "ref-5": ref, "sponsor-5": "1" }));
 	assert.equal(featuredListings()[0].featured_position, 5);
 	assert.equal(featuredListings()[0].sponsored, 1);
-	assert.throws(
-		() => saveFeatured(new URLSearchParams({ "ref-1": ref, "ref-2": ref })),
-		/aviso distinto/,
+	saveFeatured(new URLSearchParams({ "ref-1": ref, "ref-2": ref, "sponsor-2": "1" }));
+	assert.deepEqual(
+		featuredListings().map(({ ref, featured_position, sponsored }) => [ref, featured_position, sponsored]),
+		[[ref, 1, 0], [ref, 2, 1]],
 	);
 	connection
 		.prepare("UPDATE machines SET status = 'sold' WHERE ref = ?")

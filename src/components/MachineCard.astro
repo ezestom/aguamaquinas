@@ -1,55 +1,85 @@
 ---
 import Icon from './Icon.astro';
-import { categories, conditions, formats, priceLabel } from '../lib/catalog.mjs';
+import { conditions, priceLabel } from '../lib/catalog.mjs';
 import { getPhotos } from '../lib/db.mjs';
 const { machine, params, priority, promotion, compact = false } = Astro.props;
 const badge = promotion ?? (machine.reference ? 'Referencia' : undefined);
 const photo = getPhotos(machine)[0];
+const location = machine.locality?.trim() || machine.province;
 const query = params.toString();
 const href = `/equipos/${machine.ref}${query ? `?${query}` : ''}`;
 ---
 <article class:list={['machine-card', compact && 'machine-card-compact']}>
-  <a href={href} class="card-image" tabindex="-1" aria-hidden="true">
-    <img src={photo} alt="" width="540" height="360" loading={priority ? 'eager' : 'lazy'} decoding="async" />
-  </a>
+  <div class="card-media">
+    <div class="card-image">
+      <img data-card-photo src={photo} alt="" width="540" height="360" loading={priority ? 'eager' : 'lazy'} decoding="async" />
+    </div>
+    <span class="card-arrow" aria-hidden="true">
+      <span class="card-arrow-disc"><Icon name="up-right" size={18} /></span>
+    </span>
+  </div>
   <div class="card-body">
-    <div class="card-meta"><span>{categories[machine.category]}{compact && <span class="visually-hidden"> · {conditions[machine.condition]}</span>}</span></div>
     <h3><a href={href}>{machine.title}</a></h3>
-    <p class="card-status">{!compact && <span>{conditions[machine.condition]}</span>}{badge && <span class:list={['card-promotion', promotion && 'is-promoted']}>{badge}</span>}</p>
-    {!compact && <p class="card-location"><Icon name="pin" size={16} />{machine.province}</p>}
-    {!compact && <div class="card-specs">
-      <div><small>Capacidad</small><strong>{machine.capacity || 'A confirmar'}</strong></div>
-      <div><small>Formato</small><strong>{machine.format_detail || (machine.format === 'otros' ? '—' : formats[machine.format])}</strong></div>
-    </div>}
-    <div class="card-bottom"><strong class:list={[machine.reference && 'price-unlisted']}>{machine.reference ? 'Sin precio publicado' : priceLabel(machine)}</strong>{compact ? <Icon name="arrow" size={16} /> : <a href={href} aria-label={`Ver ficha de ${machine.title}`}>Ver ficha <Icon name="arrow" size={16} /></a>}</div>
+    <p class="card-status"><span>{conditions[machine.condition]}</span>{badge && <span class:list={['card-promotion', promotion && 'is-promoted']}>{badge}</span>}</p>
+    <p class="card-location"><Icon name="pin" size={15} />{location}</p>
+    <div class="card-bottom"><strong class:list={[machine.reference && 'price-unlisted']}>{machine.reference ? 'Sin precio publicado' : priceLabel(machine)}</strong></div>
   </div>
 </article>
 
 <style>
-  .card-status { display: flex; flex-wrap: wrap; gap: 6px 12px; margin-bottom: 8px; font-size: .875rem; color: var(--muted); }
-  .card-status:empty { display: none; }
-  .card-promotion.is-promoted { color: var(--deep); font-weight: 600; }
-  .card-bottom .price-unlisted { font-size: .875rem; font-weight: 450; color: var(--muted); }
-  .machine-card-compact { position: relative; scroll-snap-align: start; }
-  .machine-card-compact .card-image { aspect-ratio: 2; }
-  .machine-card-compact .card-body { padding: 14px 14px 12px; }
-  .machine-card-compact .card-meta { font-size: .875rem; }
-  .machine-card-compact h3 { font-size: 1rem; line-height: 1.4; letter-spacing: -.01em; font-weight: 600; overflow-wrap: anywhere; }
-  .machine-card-compact h3 a::after { content: ''; position: absolute; inset: 0; }
-  .machine-card-compact:has(h3 a:focus-visible) { outline: 2px solid var(--muted); outline-offset: -2px; }
-  .machine-card-compact h3 a:focus-visible { outline: none; text-decoration: underline; }
-  .machine-card-compact .card-bottom { flex-wrap: nowrap; margin-top: auto; padding-top: 6px; color: var(--deep); }
-  .machine-card-compact .card-bottom strong { font-size: .875rem; }
-  .machine-card-compact .card-bottom svg { flex-shrink: 0; }
-  @media (min-width: 900px) {
-    .card-status, .card-bottom .price-unlisted { font-size: 0.8125rem; }
-    .machine-card-compact .card-body { padding: 11px 11px 10px; }
-    .machine-card-compact .card-meta,
-    .machine-card-compact .card-status,
-    .machine-card-compact .card-bottom strong { font-size: 0.75rem; }
-    .machine-card-compact h3 { margin-block: 6px; font-size: 0.8125rem; }
-    .machine-card-compact .card-status { margin-bottom: 6px; }
-    .machine-card-compact .card-bottom { padding-top: 4px; }
-    .machine-card-compact .card-bottom svg { width: 13px; height: 13px; }
+  .machine-card { position: relative; }
+  .card-media {
+    --arrow-size: 44px;
+    --notch-size: calc(var(--arrow-size) + 8px);
+    --fillet: 12px;
+    position: relative;
   }
+  .card-image { border-radius: var(--radius-surface); }
+  .card-media::before, .card-media::after {
+    content: '';
+    position: absolute;
+    z-index: 1;
+    width: var(--fillet);
+    height: var(--fillet);
+    background: radial-gradient(circle at top left, transparent calc(var(--fillet) - 0.5px), var(--surface) var(--fillet));
+  }
+  .card-media::before { right: 0; bottom: var(--notch-size); }
+  .card-media::after { right: var(--notch-size); bottom: 0; }
+  .card-arrow {
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    display: grid;
+    place-items: end;
+    width: var(--notch-size);
+    height: var(--notch-size);
+    border-top-left-radius: calc(var(--notch-size) - var(--arrow-size) / 2);
+    background: var(--surface);
+  }
+  .card-arrow-disc {
+    display: grid;
+    place-items: center;
+    width: var(--arrow-size);
+    height: var(--arrow-size);
+    border-radius: 50%;
+    background: var(--blue-disc-fill);
+    box-shadow: var(--blue-disc-shadow);
+    color: var(--blue-disc-ink);
+  }
+  .machine-card:has(a:focus-visible) { outline: 2px solid var(--primary); outline-offset: 2px; }
+  .machine-card:is(:hover, :focus-within) .card-arrow-disc { filter: brightness(1.05); }
+  .card-body { gap: 5px; }
+  .card-body h3 { margin: 0; overflow-wrap: anywhere; }
+  .card-body h3 a::after { content: ''; position: absolute; inset: 0; z-index: 2; }
+  .card-status { display: flex; flex-wrap: wrap; gap: 4px 10px; font-size: .8125rem; color: var(--muted); }
+  .card-promotion.is-promoted { color: var(--deep); font-weight: 600; }
+  .card-location { margin-bottom: 0; overflow-wrap: anywhere; }
+  .card-location svg { flex: none; }
+  .card-bottom { margin-top: auto; padding-top: 6px; }
+  .card-bottom .price-unlisted { font-size: .8125rem; font-weight: 450; color: var(--muted); }
+  .machine-card-compact { scroll-snap-align: start; }
+  .machine-card-compact .card-media { --arrow-size: 36px; }
+  .machine-card-compact .card-body { padding: 12px; }
+  .machine-card-compact h3 { font-size: .9375rem; }
+  .machine-card-compact :is(.card-location, .card-bottom strong) { font-size: .8125rem; }
 </style>

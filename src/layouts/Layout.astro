@@ -34,7 +34,7 @@ const origin = source ? '?' + new URLSearchParams({ origen: source }) : '';
   </head>
   <body class:list={[compactPage && 'compact-page']}>
     <a class="skip-link" href="#contenido">Ir al contenido</a>
-    <header class:list={['topbar', (compactPage || page === 'panel') && 'topbar-compact', page === 'catalogo' && 'topbar-catalog']}>
+    <header class:list={['topbar', (compactPage || page === 'panel' || page === 'ficha') && 'topbar-compact', page === 'catalogo' && 'topbar-catalog']}>
       <div class="wrap topbar-inner">
         <a class="brand" href={'/' + origin} aria-label="Agua Máquinas, catálogo">
           <img class="brand-icon" src="/agua-logo.webp" alt="" width="40" height="40" />
@@ -53,7 +53,7 @@ const origin = source ? '?' + new URLSearchParams({ origen: source }) : '';
         </div>
       </div>
     </header>
-    <main id="contenido" transition:animate={page === 'catalogo' ? 'none' : 'fade'}><slot /></main>
+    <main id="contenido" transition:animate={page === 'catalogo' || page === 'ficha' ? 'none' : 'fade'}><slot /></main>
     <SiteFooter origin={origin} />
     {!page.startsWith('panel') && <SiteAssistant client:only="react" />}
     <script>
@@ -65,6 +65,25 @@ const origin = source ? '?' + new URLSearchParams({ origen: source }) : '';
         target.querySelector('[data-theme-toggle]')?.setAttribute('aria-pressed', String(dark));
       };
       applyTheme(document, darkMode());
+      document.addEventListener('astro:before-preparation', event => {
+        if (!document.startViewTransition || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+        const { loader, sourceElement, from, to } = event;
+        const photo = sourceElement?.closest('.machine-card')?.querySelector<HTMLImageElement>('[data-card-photo]');
+        if (from.pathname !== '/' || !to.pathname.startsWith('/equipos/') || !photo) return;
+
+        event.loader = async () => {
+          await loader();
+          const target = event.newDocument.querySelector<HTMLImageElement>('[data-equipment-photo]');
+          if (event.signal.aborted || !target || target.getAttribute('src') !== photo.getAttribute('src')) return;
+          photo.style.viewTransitionName = 'equipment-photo';
+          target.style.viewTransitionName = 'equipment-photo';
+          event.signal.addEventListener('abort', () => photo.style.removeProperty('view-transition-name'), { once: true });
+          document.addEventListener('astro:before-swap', ({ viewTransition }) => {
+            const clear = () => target.style.removeProperty('view-transition-name');
+            void viewTransition.finished.then(clear, clear);
+          }, { once: true, signal: event.signal });
+        };
+      });
       document.addEventListener('click', event => {
         if (!(event.target instanceof Element) || !event.target.closest('[data-theme-toggle]')) return;
         const dark = !darkMode();

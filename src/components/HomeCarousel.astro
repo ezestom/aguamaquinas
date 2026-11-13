@@ -133,12 +133,13 @@ const slides: Slide[] = campaigns.length ? campaigns : previews.length ? preview
       radial-gradient(ellipse at 82% 35%, #c5e2ff 0%, #a4ccff 55%, #dceeff 100%);
   }
   .home-campaign { color: var(--deep); }
-  .campaign-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr); align-items: center; gap: 48px; padding: 40px 44px 72px; }
+  .campaign-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.35fr); align-items: center; gap: 48px; padding: 44px 44px 72px; }
   .home-campaign.home-campaign-product h2 { max-width: 13ch; font-size: clamp(30px, 3.5vw, 50px); line-height: 1.12; letter-spacing: -.03em; font-weight: 650; text-wrap: balance; }
   .home-campaign.home-campaign-product p { max-width: 38ch; margin: 18px 0 24px; font-size: 18px; line-height: 1.6; }
   .home-campaign-product .home-campaign-cta { background: var(--surface); color: var(--deep); }
   .home-campaign-product .home-campaign-cta:hover { background: var(--tint); }
-  .campaign-product-photo { width: 100%; height: 280px; object-fit: cover; }
+  .campaign-product-photo { width: 100%; height: 280px; object-fit: cover; border-radius: 14px; }
+  .campaign-product-photo:not(.campaign-sponsored-photo) { box-shadow: 0 14px 28px -12px rgb(20 36 58 / 32%); }
   .campaign-sponsored-photo { object-fit: contain; }
   .home-campaign-track { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; overscroll-behavior-x: contain; scrollbar-width: none; }
   .home-campaign { position: relative; display: grid; align-items: center; min-width: 0; flex: 0 0 100%; scroll-snap-align: start; }
@@ -189,11 +190,11 @@ const slides: Slide[] = campaigns.length ? campaigns : previews.length ? preview
   @media (min-width: 900px) {
     .home-carousel { --campaign-fade-size: 94px; }
     .campaign-layout {
-      gap: 38px;      
+      gap: clamp(38px, 5vw, 72px);
     }
-    .home-campaign.home-campaign-product h2 { font-size: clamp(2rem, 3.25vw, 2.5rem); }
+    .home-campaign.home-campaign-product h2 { font-size: clamp(2.25rem, 3.4vw, 3.25rem); }
     .home-campaign.home-campaign-product p { margin: 14px 0 19px; font-size: 0.9375rem; }
-    .campaign-product-photo { height: clamp(200px, 30vh, 248px); }
+    .campaign-product-photo { height: clamp(260px, 36vh, 320px); }
     .home-campaign-image { min-height: clamp(160px, 26vw, 336px); }
     .home-campaign-image:has(.preview-photo) { min-height: clamp(210px, 25vw, 336px); }
     .home-campaign-cta { font-size: 0.8125rem; }
@@ -205,8 +206,8 @@ const slides: Slide[] = campaigns.length ? campaigns : previews.length ? preview
     .campaign-arrow[data-step="1"] { inset-inline-end: 11px; }
   }
   @media (min-width: 900px) and (max-height: 760px) {
-    .campaign-layout { padding-block: 24px 28px; }
-    .home-campaign.home-campaign-product h2 { font-size: clamp(2rem, 3vw, 2.25rem); }
+    .campaign-layout { padding-block: 30px 38px; }
+    .home-campaign.home-campaign-product h2 { font-size: clamp(2.25rem, 3.4vw, 2.75rem); }
     .home-campaign.home-campaign-product p { margin-block: 12px 16px; }
   }
   @media (width < 900px) {
@@ -217,7 +218,7 @@ const slides: Slide[] = campaigns.length ? campaigns : previews.length ? preview
     .campaign-layout { grid-template-columns: 1fr; gap: 24px; padding: 32px 0 76px; }
     .home-campaign.home-campaign-product h2 { max-width: 18ch; }
     .home-campaign.home-campaign-product p { font-size: 16px; margin: 12px 0 20px; }
-    .campaign-product-photo { height: 180px; }
+    .campaign-product-photo { height: clamp(185px, 53vw, 240px); }
     .campaign-product-copy .button { min-height: 46px; }
     .home-campaign:has(.preview-photo-contained) { padding-bottom: 54px; background: #fff; }
     .home-campaign-image { min-height: 160px; }

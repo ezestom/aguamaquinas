@@ -97,9 +97,16 @@
 
 @media (min-width: 721px) {
   .admin-sheet-header { display: grid; grid-template-columns: minmax(0, 44%) minmax(0, 1fr); }
-  .admin-sheet-header .admin-export { min-width: 13.25rem; }
   .admin-filters { display: grid; grid-template-columns: minmax(0, 440px) 12rem max-content max-content; }
   .admin-filters > .button { grid-column: 3; }
+}
+@media (min-width: 900px) and (pointer: fine) {
+  .admin-header-actions .button,
+  .admin-filters > .button {
+    min-height: 36px;
+    padding: 6px 10px;
+    font-size: var(--nav-size);
+  }
 }
 @media (max-width: 720px) {
   .admin-header { flex-direction: column; align-items: start; gap: 12px; }
