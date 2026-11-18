@@ -3,10 +3,15 @@ import Icon from '../components/Icon.astro';
 import SiteFooter from '../components/SiteFooter.astro';
 import SiteAssistant from '../components/SiteAssistant.jsx';
 import { inquirySource } from '../lib/inquiry-options.mjs';
+import { catalogTitle, seoOrigin } from '../lib/seo.mjs';
 import { ClientRouter } from 'astro:transitions';
 import interLatin from '@fontsource-variable/inter/files/inter-latin-wght-normal.woff2?url';
 import '../styles/global.css';
-const { title = 'Maquinaria usada para agua y soda', page = 'catalogo', noindex = false } = Astro.props;
+const { title = catalogTitle, page = 'catalogo', noindex = false, canonicalPath, description, image, schema } = Astro.props;
+const indexable = !noindex && (page === 'catalogo' || page === 'ficha');
+const canonical = indexable && canonicalPath ? new URL(canonicalPath, seoOrigin(Astro.url)).href : '';
+const fullTitle = title + ' | Agua Máquinas';
+const structuredData = indexable && schema ? JSON.stringify(schema).replace(/</g, '\\u003c') : '';
 const compactPage = ['catalogo', 'consulta', 'consulta-equipo', 'publicar', 'sugerencias', 'panel-login'].includes(page);
 const darkModeEnabled = false;
 const source = inquirySource(Astro.url.searchParams.get('origen'));
@@ -17,7 +22,18 @@ const origin = source ? '?' + new URLSearchParams({ origen: source }) : '';
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    {(noindex || (page !== 'catalogo' && page !== 'ficha')) && <meta name="robots" content="noindex, nofollow" />}
+    {!indexable && <meta name="robots" content={page === 'catalogo' ? 'noindex, follow' : 'noindex, nofollow'} />}
+    {description && <meta name="description" content={description} />}
+    {canonical && <>
+      <link rel="canonical" href={canonical} />
+      <meta property="og:url" content={canonical} />
+      <meta property="og:title" content={fullTitle} />
+      <meta property="og:type" content="website" />
+      <meta property="og:locale" content="es_AR" />
+      {description && <meta property="og:description" content={description} />}
+      {image && <meta property="og:image" content={image} />}
+    </>}
+    {structuredData && <script is:inline type="application/ld+json" set:html={structuredData} />}
     <meta name="theme-color" content="#ffffff" />
     {darkModeEnabled && <script is:inline>
       try {
@@ -29,7 +45,7 @@ const origin = source ? '?' + new URLSearchParams({ origen: source }) : '';
     </script>}
     <link rel="icon" type="image/webp" href="/agua-logo.webp" />
     <link rel="preload" href={interLatin} as="font" type="font/woff2" crossorigin="anonymous" />
-    <title>{title} | Agua Máquinas</title>
+    <title>{fullTitle}</title>
     <ClientRouter fallback="swap" />
   </head>
   <body class:list={[compactPage && 'compact-page']}>

@@ -14,7 +14,7 @@ interface Props {
 const { photos, title, preview = false } = Astro.props;
 const slides = await Promise.all(photos.map(async (src) => {
   const upload = /^\/media\/([a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}\.webp)$/.exec(src);
-  const sample = /^\/equipos\/([a-z]+\.webp)$/.exec(src);
+  const sample = /^\/equipos\/([a-z]+\.webp|pedro-\d+-\d+\.webp)$/.exec(src);
   const path = upload ? resolve(dataDir(), 'fotos', upload[1])
     : sample ? resolve(import.meta.env.PROD ? 'dist/client' : 'public', 'equipos', sample[1]) : null;
   if (!path) return null;

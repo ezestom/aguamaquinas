@@ -20,6 +20,7 @@ export default function SiteAssistant() {
   const [pending, setPending] = useState('');
   const [error, setError] = useState('');
   const gesture = useRef(null);
+  const drawerGesture = useRef(null);
   const suppressClick = useRef(false);
   const activeRequest = useRef(null);
   const transcript = useRef(null);
@@ -60,6 +61,14 @@ export default function SiteAssistant() {
     suppressClick.current = current.moved;
     gesture.current = null;
     if (current.moved) remember(clamp(current.position + (event.clientY - current.y) / window.innerHeight));
+  }
+
+  function finishDrawerDrag(event, cancelled = false) {
+    const drag = drawerGesture.current;
+    if (drag?.id !== event.pointerId) return;
+    drawerGesture.current = null;
+    drag.drawer.style.removeProperty('translate');
+    if (!cancelled && event.clientY - drag.y >= 64) setOpen(false);
   }
 
   async function send(value) {
@@ -126,10 +135,25 @@ export default function SiteAssistant() {
     <Drawer.Portal>
       <Drawer.Overlay className="assistant-overlay" />
       <Drawer.Content className="assistant-drawer">
-        <Drawer.Handle className="assistant-handle" />
+        <div className="assistant-handle" aria-hidden="true"
+          onPointerDown={event => {
+            if (!event.isPrimary || event.button !== 0) return;
+            const handle = event.currentTarget;
+            drawerGesture.current = { id: event.pointerId, y: event.clientY, drawer: handle.parentElement };
+            handle.setPointerCapture(event.pointerId);
+          }}
+          onPointerMove={event => {
+            const drag = drawerGesture.current;
+            if (drag?.id !== event.pointerId) return;
+            drag.drawer.style.translate = '0 ' + Math.max(0, event.clientY - drag.y) + 'px';
+          }}
+          onPointerUp={finishDrawerDrag}
+          onPointerCancel={event => finishDrawerDrag(event, true)}
+          onLostPointerCapture={event => finishDrawerDrag(event, true)}
+        />
         <header className="assistant-header">
           <Drawer.Close className="assistant-close" aria-label="Cerrar asistente">
-            <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="m14 6-6 6 6 6" /></svg>
+            <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><path d="m6 6 12 12M18 6 6 18" /></svg>
           </Drawer.Close>
           <Sparkles />
           <Drawer.Title className="visually-hidden">Asistente de Aguamáquinas</Drawer.Title>
@@ -146,7 +170,10 @@ export default function SiteAssistant() {
             {entry.links?.length > 0 && <ul>{entry.links.map(link =>
               <li key={link.href}><a href={link.href} onClick={() => setOpen(false)}>{link.title}</a></li>)}</ul>}
           </div>)}
-          {pending && <><div className="assistant-bubble assistant-user"><p>{pending}</p></div><p role="status">Buscando información…</p></>}
+          {pending && <>
+            <div className="assistant-bubble assistant-user"><p>{pending}</p></div>
+            <p className="assistant-pending" role="status"><span className="assistant-orb" aria-hidden="true" />Preparando tu respuesta…</p>
+          </>}
           {error && <p role="alert">{error}</p>}
         </div>
         <form className="assistant-form" onSubmit={event => { event.preventDefault(); void send(draft); }}>

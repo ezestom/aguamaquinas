@@ -46,6 +46,7 @@ const specifications = machine && [
   <div class="wrap interior form-interior">
     <a class="back-link" href={(machine ? `/equipos/${machine.ref}` : '/') + sourceQuery}><Icon name="back" size={18} />{machine ? 'Volver a la ficha' : 'Volver al catálogo'}</a>
     <header class="page-heading"><h1>{sent ? 'Consulta enviada' : unavailable ? 'Equipo no disponible' : machine ? 'Consultá por este equipo' : '¿Qué equipo necesitás?'}</h1>
+      {machine && !sent && <p>Dejanos tu contacto y te respondemos por WhatsApp.</p>}
       {!sent && !unavailable && !machine && <p>Contanos qué querés envasar, qué capacidad buscás y en qué provincia estás.</p>}
     </header>
     {machine && <section class="inquiry-equipment" aria-labelledby="inquiry-equipment-title">
@@ -57,29 +58,26 @@ const specifications = machine && [
         {machine.reference ? <p>Ficha de referencia. Podemos buscar este modelo o uno similar.</p> : <strong>{priceLabel(machine)}</strong>}
       </div>
     </section>}
-    <div class="form-card">
-    {sent ? <><p class="message" role="status">Recibimos tu consulta. El equipo de Agua Máquinas podrá contactarte para seguirla.</p><a class="button button-primary" href={'/' + sourceQuery}>Volver al catálogo</a></> : unavailable ? <>
+    <div class:list={['form-card', { 'equipment-inquiry': machine && !sent }]}>
+    {sent ? <><p class="message" role="status">{machine ? 'Recibimos tu consulta. Te vamos a responder por WhatsApp.' : 'Recibimos tu consulta. El equipo de Agua Máquinas podrá contactarte para seguirla.'}</p><a class="button button-primary" href={machine ? `/equipos/${machine.ref}${sourceQuery}` : '/' + sourceQuery}>{machine ? 'Volver a la ficha' : 'Volver al catálogo'}</a></> : unavailable ? <>
         <p class="message">Dejanos un pedido y contanos qué máquina buscás.</p>
         <a class="button button-primary" href={'/consulta' + sourceQuery}>Pedir un equipo</a>
       </> : <>
         {error && <p class="message message-error" role="alert">{error}</p>}
         <form class="form-stack" method="post" data-astro-reload>
-          <label>Tu nombre<input name="name" required maxlength="80" autocomplete="name" value={text(form, 'name', 80)} /></label>
           <div class="field-grid">
+            <label class:list={{ 'inquiry-full-field': !machine }}>Tu nombre<input name="name" required maxlength="80" autocomplete="name" value={text(form, 'name', 80)} /></label>
             <label>WhatsApp<input name="whatsapp" type="tel" required maxlength="30" autocomplete="tel" placeholder="Ej. +54 9 11 1234 5678" value={value('whatsapp')} /></label>
-            <label>Correo electrónico<input name="email" type="email" required maxlength="254" autocomplete="email" value={value('email')} /></label>
+            {!machine && <label>Correo electrónico<input name="email" type="email" required maxlength="254" autocomplete="email" value={value('email')} /></label>}
           </div>
-          <label>{machine ? 'Mensaje' : '¿Qué equipo buscás?'}{machine && <small>Opcional</small>}
+          <label>{machine ? <span class="inquiry-message-label">¿Qué querés saber? <small>Opcional</small></span> : '¿Qué equipo buscás?'}
             <textarea name="message" required={!machine} maxlength="1200"
-              placeholder={machine ? 'Podés pedir un video, coordinar una visita o contarnos si buscás un equipo similar.' : 'Ej. Busco una llenadora para bidones de 20 L en Córdoba.'}>{value('message')}</textarea>
+              placeholder={machine ? 'Ej. ¿Me podés enviar un video del equipo?' : 'Ej. Busco una llenadora para bidones de 20 L en Córdoba.'}>{value('message')}</textarea>
           </label>
-          {machine ? <details class="inquiry-purchase" open={Boolean(value('location') || value('budget') || value('timeframe'))}>
-            <summary>Agregar datos de la compra <small>Opcional</small></summary>
-            <div class="field-grid"><InquiryCriteria value={value} /></div>
-          </details> : <fieldset><legend>Datos de la compra</legend>
+          {!machine && <fieldset><legend>Datos de la compra</legend>
             <div class="field-grid"><InquiryCriteria value={value} publicForm /></div>
           </fieldset>}
-          <p class="field-hint">Usamos tu WhatsApp y correo para responderte.</p>
+          {!machine && <p class="field-hint">Usamos tu WhatsApp y correo para responderte.</p>}
           <button class="button button-primary" type="submit">Enviar consulta <Icon name="arrow" size={18} /></button>
         </form>
       </>}
@@ -104,10 +102,14 @@ const specifications = machine && [
   .inquiry-equipment p { font-size: .875rem; color: var(--muted); }
   .inquiry-equipment .inquiry-reference { font-size: .8125rem; font-weight: 600; }
   .inquiry-equipment strong { display: inline-block; margin-top: 4px; }
-  .inquiry-purchase { padding-block: 10px; border-block: 1px solid var(--line); }
-  .inquiry-purchase summary { cursor: pointer; color: var(--deep); font-weight: 650; }
-  .inquiry-purchase summary small { margin-inline-start: 4px; }
-  .inquiry-purchase[open] .field-grid { margin-top: 12px; }
+  .inquiry-full-field { grid-column: 1 / -1; }
+  .inquiry-message-label { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; }
+  .equipment-inquiry .form-stack { gap: 20px; }
+  .form-interior .equipment-inquiry :is(input[name], button.button) { min-height: 44px; }
+  .equipment-inquiry button { justify-self: end; }
+  @media (width <= 520px) {
+    .equipment-inquiry button { justify-self: stretch; }
+  }
   @media (max-width: 520px) {
     .inquiry-equipment { align-items: flex-start; padding: 12px; gap: 12px; }
     .inquiry-equipment img { width: 64px; height: 64px; }

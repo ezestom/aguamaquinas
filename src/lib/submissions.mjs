@@ -172,7 +172,7 @@ export function submitInquiry(form, ref, origin, manual = false) {
   if (!name) throw new FormError('Ingresá tu nombre.');
   if (manual && !contact) throw new FormError('Ingresá un teléfono o correo.');
   if (!manual && !validBuyerWhatsApp(whatsapp)) throw new FormError('Ingresá un número de WhatsApp válido.');
-  if (!manual && !validBuyerEmail(email)) throw new FormError('Ingresá un correo electrónico válido.');
+  if (!manual && (!ref || email) && !validBuyerEmail(email)) throw new FormError('Ingresá un correo electrónico válido.');
   if ((manual || !ref) && !message) throw new FormError('Contanos qué equipo estás buscando.');
   if (timeframe && !Object.hasOwn(inquiryTimeframes, timeframe)) throw new FormError('Elegí un plazo de compra válido.');
   const connection = db();
@@ -200,8 +200,11 @@ export function submitInquiry(form, ref, origin, manual = false) {
     connection.prepare('INSERT INTO inquiry_followups (inquiry_id, location, budget, timeframe, manual) VALUES (?, ?, ?, ?, ?)')
       .run(id, text(form, 'location', 100), text(form, 'budget', 80), timeframe, Number(manual));
     const event = `consulta/${ref || 'general'}/${id}`;
-    if (!manual) connection.prepare('INSERT INTO notification_outbox (event) VALUES (?), (?)')
-      .run(event, `confirmacion-${event}`);
+    if (!manual) {
+      const enqueue = connection.prepare('INSERT INTO notification_outbox (event) VALUES (?)');
+      enqueue.run(event);
+      if (email) enqueue.run(`confirmacion-${event}`);
+    }
     connection.exec('COMMIT');
     return event;
   } catch (error) {

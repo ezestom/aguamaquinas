@@ -331,10 +331,10 @@ test("una consulta vinculada guarda los dos contactos y admite un mensaje vacío
 		whatsapp: "0111568641122",
 		email: "compradora@example.com",
 	});
-	const event = submissions.submitInquiry(form, "EJ-1046", "pedro");
+	const event = submissions.submitInquiry(form, "EJ-1389", "pedro");
 	const record = managedRecord("consulta", event.split("/").at(-1));
-	assert.equal(record.machine_ref, "EJ-1046");
-	assert.equal(record.machine_title, "Ozonizador con torre de contacto");
+	assert.equal(record.machine_ref, "EJ-1389");
+	assert.equal(record.machine_title, "Roscadora de acero inoxidable de 6 cabezales");
 	assert.equal(record.buyer_whatsapp, "0111568641122");
 	assert.equal(record.buyer_email, "compradora@example.com");
 	assert.equal(record.message, "");
@@ -351,9 +351,13 @@ test("una consulta vinculada guarda los dos contactos y admite un mensaje vacío
 		status: 400,
 	});
 	form.delete("email");
-	assert.throws(() => submissions.submitInquiry(form, "EJ-1046", "pedro"), {
-		status: 400,
-	});
+	const shortEvent = submissions.submitInquiry(form, "EJ-1389", "pedro");
+	const shortRecord = managedRecord("consulta", shortEvent.split("/").at(-1));
+	assert.equal(shortRecord.machine_ref, "EJ-1389");
+	assert.equal(shortRecord.buyer_whatsapp, "0111568641122");
+	assert.equal(shortRecord.buyer_email, "");
+	assert.equal(connection.prepare("SELECT event FROM notification_outbox WHERE event = ?")
+		.get(`confirmacion-${shortEvent}`), undefined);
 	const previous = process.env.AGUA_NOTIFICATION_EMAIL;
 	process.env.AGUA_NOTIFICATION_EMAIL = "panel@example.com";
 	try {
@@ -378,14 +382,14 @@ test("una consulta vinculada guarda los dos contactos y admite un mensaje vacío
 		assert.equal(sent.length, 1);
 		assert.equal(sent[0].to, "panel@example.com");
 		assert.equal(sent[0].replyTo, "compradora@example.com");
-		assert.match(sent[0].subject, /EJ-1046.*Ozonizador/);
+		assert.match(sent[0].subject, /EJ-1389.*Roscadora/);
 		assert.match(sent[0].text, /WhatsApp: 0111568641122/);
 		delete process.env.AGUA_NOTIFICATION_EMAIL;
 		await deliverNotification(`confirmacion-${event}`, async (mail) => sent.push(mail));
 		await deliverNotification(`confirmacion-${event}`, async (mail) => sent.push(mail));
 		assert.equal(sent.length, 2);
 		assert.equal(sent[1].to, "compradora@example.com");
-		assert.match(sent[1].text, /Ozonizador.*EJ-1046/);
+		assert.match(sent[1].text, /Roscadora.*EJ-1389/);
 	} finally {
 		if (previous === undefined) delete process.env.AGUA_NOTIFICATION_EMAIL;
 		else process.env.AGUA_NOTIFICATION_EMAIL = previous;
@@ -398,8 +402,8 @@ test("una consulta guarda una alerta pendiente y los avisos anteriores requieren
 	form.set("email", "comprador@example.com");
 	form.set("whatsapp", "+54 9 351 123 4567");
 	form.set("message", "¿Está disponible?");
-	const event = submissions.submitInquiry(form, "EJ-1041", "sitio-anterior");
-	assert.match(event, /^consulta\/EJ-1041\/\d+$/);
+	const event = submissions.submitInquiry(form, "EJ-0237", "sitio-anterior");
+	assert.match(event, /^consulta\/EJ-0237\/\d+$/);
 	assert.equal(
 		connection
 			.prepare("SELECT sent_at FROM notification_outbox WHERE event = ?")
@@ -602,7 +606,7 @@ test("la planilla evita cambios obsoletos y permite recuperar avisos y consultas
 	assert.equal(managedRecord("aviso", ref).photos, edited.photos);
 
 	const inquiry = managedInquiries().find(
-		(item) => item.machine_ref === "EJ-1041",
+		(item) => item.machine_ref === "EJ-0237",
 	);
 	const key = String(inquiry.id);
 	applyPanelChange("consulta", key, "delete", form("consulta", key));

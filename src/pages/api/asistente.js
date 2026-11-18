@@ -70,7 +70,12 @@ export async function POST({ request, url, clientAddress }) {
       sources: assistantContext(messages), signal: AbortSignal.any([request.signal, AbortSignal.timeout(15_000)]),
     });
     return json(result);
-  } catch {
-    return json({ error: 'El asistente no pudo responder. Podés reintentar o usar el contacto de Aguamáquinas.' }, 502);
+  } catch (error) {
+    if (!request.signal.aborted) {
+      const reason = error?.name === 'TimeoutError' ? 'Tiempo de espera agotado'
+        : error?.message?.startsWith('Groq ') ? error.message : 'Error de conexión o del servidor';
+      console.warn('[asistente]', reason);
+    }
+    return json({ error: 'Esta vez no pude responder. Probá enviando tu mensaje de nuevo.' }, 502);
   }
 }

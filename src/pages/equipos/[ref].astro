@@ -6,6 +6,8 @@ import EquipmentDetails from '../../components/EquipmentDetails.astro';
 import { getPhotos } from '../../lib/db.mjs';
 import { findPublicEquipment } from '../../lib/public-equipment.mjs';
 import { inquirySource } from '../../lib/inquiry-options.mjs';
+import { publicAvailabilityOrigin } from '../../lib/availability.mjs';
+import { equipmentPath, equipmentSeo, seoOrigin } from '../../lib/seo.mjs';
 const machine = findPublicEquipment(Astro.params.ref);
 if (!machine) Astro.response.status = 404;
 const photos = machine ? getPhotos(machine) : [];
@@ -15,20 +17,103 @@ const inquiry = new URLSearchParams();
 if (machine) inquiry.set('equipo', machine.ref);
 const origin = inquirySource(returnQuery.get('origen'));
 if (origin) inquiry.set('origen', origin);
+const contactNumber = process.env.AGUA_WHATSAPP_NUMBER?.trim().replace(/^\+/, '') ?? '';
+const publicOrigin = publicAvailabilityOrigin(process.env.AGUA_PUBLIC_URL);
+const canonicalPath = machine ? equipmentPath(machine.ref) : '';
+const shareUrl = publicOrigin ? new URL(canonicalPath, publicOrigin).href : canonicalPath;
+const seo = machine && equipmentSeo(machine, photos, seoOrigin(Astro.url));
+const whatsappMessage = machine ? `Hola, quisiera consultar por ${machine.title} (${machine.ref}).\n` : '';
+const whatsappUrl = machine && /^\d{8,15}$/.test(contactNumber)
+  ? `https://wa.me/${contactNumber}?${new URLSearchParams({
+      text: whatsappMessage + new URL(shareUrl, Astro.url.origin).href,
+    })}`
+  : '';
 ---
-<Layout title={machine?.title ?? 'Equipo no disponible'} page="ficha" noindex={!machine || Boolean(machine.reference)}>
+<Layout title={machine?.title ?? 'Equipo no disponible'} page="ficha" noindex={!machine} canonicalPath={canonicalPath} {...seo}>
   <div class="wrap interior equipment-page">
     <a class="back-link" href={back}><Icon name="back" size={18} /> Volver a los resultados</a>
     {machine ? <div class="detail-grid">
       <ProductGallery photos={photos} title={machine.title} />
       <EquipmentDetails machine={machine}>
-        <a class="button button-primary" href={`/consulta?${inquiry}`}>{machine.reference ? 'Consultar por este modelo' : 'Pedir información de este equipo'} <Icon name="arrow" size={18} /></a>
+        <div class="equipment-contact" data-equipment-share>
+          {machine.reference && <p class="reference-note">Podemos buscarte este modelo o uno similar.</p>}
+          <div class="contact-buttons">
+            <a class="button button-primary" href={`/consulta?${inquiry}`}>Enviar consulta <Icon name="arrow" size={18} /></a>
+            {whatsappUrl && <a class="button button-outline whatsapp-button" href={whatsappUrl} data-whatsapp-message={whatsappMessage}>
+              <Icon name="chat" size={19} /> Preguntar por WhatsApp
+            </a>}
+          </div>
+          <div class="share-equipment">
+            <button class="share-button" type="button" data-copy-link><Icon name="link" size={17} /> Copiar enlace</button>
+            <span class="share-status" role="status"></span>
+            <input aria-label="Enlace de la ficha" data-share-url value={shareUrl} readonly hidden />
+          </div>
+        </div>
       </EquipmentDetails>
     </div> : <div class="empty"><h1>Equipo no disponible</h1><p>Podés buscar otro equipo o dejarnos un pedido.</p><a class="button button-primary" href={'/consulta' + (inquiry.size ? '?' + inquiry : '')}>Pedir un equipo</a></div>}
   </div>
 </Layout>
 
+<script>
+  function setupEquipmentShare() {
+    for (const share of document.querySelectorAll('[data-equipment-share]')) {
+      const button = share.querySelector<HTMLButtonElement>('[data-copy-link]');
+      const input = share.querySelector<HTMLInputElement>('[data-share-url]');
+      const status = share.querySelector('[role="status"]');
+      const whatsapp = share.querySelector<HTMLAnchorElement>('[data-whatsapp-message]');
+      if (!button || !input || !status || button.dataset.ready) continue;
+      button.dataset.ready = 'true';
+      input.value = new URL(input.value, window.location.origin).href;
+      if (whatsapp) {
+        const url = new URL(whatsapp.href);
+        url.searchParams.set('text', whatsapp.dataset.whatsappMessage + input.value);
+        whatsapp.href = url.href;
+      }
+      button.addEventListener('click', async () => {
+        status.textContent = '';
+        try {
+          await navigator.clipboard.writeText(input.value);
+          input.hidden = true;
+          status.textContent = 'Enlace copiado';
+        } catch {
+          input.hidden = false;
+          input.focus();
+          input.select();
+          status.textContent = 'Seleccioná y copiá el enlace.';
+        }
+      });
+    }
+  }
+  document.addEventListener('astro:page-load', setupEquipmentShare);
+  setupEquipmentShare();
+</script>
+
 <style>
+  .equipment-page :global(.detail-reference) { margin-block: 8px 12px; }
+  .equipment-contact { flex: 1 0 100%; min-width: 0; }
+  .reference-note { margin: -4px 0 14px; color: var(--muted); font-size: .9375rem; }
+  .contact-buttons { display: flex; flex-wrap: wrap; gap: 8px; }
+  .contact-buttons .button { min-height: 44px; }
+  .whatsapp-button svg { color: #187447; }
+  .share-equipment { display: flex; flex-wrap: wrap; align-items: center; column-gap: 10px; margin-top: 4px; }
+  .share-button {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    min-height: 44px;
+    padding: 0 4px;
+    border-radius: 4px;
+    color: var(--deep);
+    font-size: .875rem;
+    font-weight: 650;
+  }
+  .share-button:hover { text-decoration: underline; text-underline-offset: 3px; }
+  .share-status { color: var(--muted); font-size: .8125rem; }
+  .share-equipment input { flex: 1 0 100%; min-width: 0; }
+  .equipment-page :global(.detail-desc) { border-top: 1px solid var(--line); padding-top: 14px; }
+  @media (width <= 520px) {
+    .contact-buttons { display: grid; }
+  }
   @media (width > 690px) {
     .equipment-page { max-width: 1160px; padding-block: 16px 36px; }
     .equipment-page .back-link { margin-bottom: 10px; font-size: .875rem; }

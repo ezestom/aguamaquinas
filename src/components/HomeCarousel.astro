@@ -25,8 +25,8 @@ const previews = import.meta.env.DEV && !campaigns.length
   ? (await import('../lib/campaign-previews.mjs')).default
   : [];
 const slides: Slide[] = campaigns.length ? campaigns : previews.length ? previews : [
-  { title: '¿Qué equipo necesitás?', description: 'Contanos qué buscás para tu línea de envasado.', label: 'Pedir un equipo', href: inquiryHref, productPhoto: '/equipos/linea.webp' },
-  { title: 'Vendé tu maquinaria', description: 'Publicá tu equipo para que lo encuentren compradores del sector.', label: 'Publicar gratis', href: '/publicar', productPhoto: '/equipos/lavadora.webp' },
+  { title: '¿Qué equipo necesitás?', description: 'Contanos qué buscás para tu línea de envasado.', label: 'Pedir un equipo', href: inquiryHref, productPhoto: '/equipos/pedro-1390-1.webp' },
+  { title: 'Vendé tu maquinaria', description: 'Publicá tu equipo para que lo encuentren compradores del sector.', label: 'Publicar gratis', href: '/publicar', productPhoto: '/equipos/pedro-237-1.webp' },
 ];
 ---
 <home-carousel class="home-carousel" role="region" aria-label="Campañas de Agua Máquinas">

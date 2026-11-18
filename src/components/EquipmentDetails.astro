@@ -4,23 +4,27 @@ import { categories, conditions, formats, priceLabel } from '../lib/catalog.mjs'
 
 const { machine, heading: Heading = 'h1' } = Astro.props;
 const DescriptionHeading = Heading === 'h1' ? 'h2' : 'h4';
+const videos = machine.videos ?? (machine.video ? [machine.video] : []);
+const publicDetail = Heading === 'h1';
+const specs = [
+  ['Capacidad', machine.capacity || 'A confirmar'],
+  ['Formato', machine.format_detail || formats[machine.format]],
+  ['Marca', machine.brand || 'A confirmar'],
+  ['Modelo', machine.model || 'A confirmar'],
+].filter(([, value]) => !publicDetail || (value && !/^(a confirmar|otros \/ no aplica)$/i.test(value.trim())));
 ---
 
 <section class="detail-copy">
-  <p class="eyebrow">{categories[machine.category]} · {machine.ref}</p>
+  {!publicDetail && <p class="eyebrow">{categories[machine.category]} · {machine.ref}</p>}
   <Heading class="equipment-title">{machine.title}</Heading>
-  <p class="card-location"><Icon name="pin" size={19} />{machine.province}</p>
-  <span class:list={['tag', `tag-${machine.condition}`]}>{conditions[machine.condition]}</span>
-  <dl>
-    <div><dt>Capacidad</dt><dd>{machine.capacity || 'A confirmar'}</dd></div>
-    <div><dt>Formato</dt><dd>{machine.format_detail || formats[machine.format]}</dd></div>
-    <div><dt>Marca</dt><dd>{machine.brand || 'A confirmar'}</dd></div>
-    <div><dt>Modelo</dt><dd>{machine.model || 'A confirmar'}</dd></div>
-  </dl>
+  {publicDetail && <p class="eyebrow detail-reference">{categories[machine.category]} · {machine.ref}</p>}
+  {(!publicDetail || machine.province) && <p class="card-location"><Icon name="pin" size={19} />{machine.province || 'Ubicación a confirmar'}</p>}
+  {(!publicDetail || conditions[machine.condition]) && <span class:list={['tag', `tag-${machine.condition}`]}>{conditions[machine.condition] || 'Condición a confirmar'}</span>}
+  {specs.length > 0 && <dl>{specs.map(([label, value]) => <div><dt>{label}</dt><dd>{value}</dd></div>)}</dl>}
   <p class="detail-price">{machine.reference ? 'Equipo de referencia' : priceLabel(machine)}</p>
-  {(Astro.slots.has('default') || machine.video) && <div class="detail-actions">
+  {(Astro.slots.has('default') || videos.length > 0) && <div class="detail-actions">
     <slot />
-    {machine.video && <a class="button button-outline" href={machine.video} target="_blank" rel="noopener noreferrer"><Icon name="play" size={17} /> Ver video <Icon name="external" size={14} /></a>}
+    {videos.map((video, index) => <a class="button button-outline" href={video} target="_blank" rel="noopener noreferrer"><Icon name="play" size={17} /> {videos.length === 1 ? 'Ver video' : `Ver video ${index + 1}`} <Icon name="external" size={14} /></a>)}
   </div>}
   <div class="detail-desc"><DescriptionHeading class="equipment-description-title">Sobre el equipo</DescriptionHeading><p>{machine.description}</p></div>
 </section>

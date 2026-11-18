@@ -10,6 +10,7 @@ import { db } from '../lib/db.mjs';
 import { featuredLimit, featuredListings, homeCampaigns } from '../lib/home.mjs';
 import { referenceEquipment } from '../lib/reference-equipment.mjs';
 import { inquirySource } from '../lib/inquiry-options.mjs';
+import { catalogDescription, catalogTitle, categoryPath, categorySeo, seoOrigin } from '../lib/seo.mjs';
 
 const params = Astro.url.searchParams;
 const category = Object.hasOwn(categories, params.get('categoria')) ? params.get('categoria') : '';
@@ -65,8 +66,18 @@ if (origin) reset.set('origen', origin);
 if (category) reset.set('categoria', category);
 if (filters.has('q')) reset.set('q', filters.get('q'));
 const filterCount = ['provincia', 'formato', 'estado'].filter(key => filters.has(key)).length;
+const [seoTitle, seoDescription] = category ? categorySeo(category) : [catalogTitle, catalogDescription];
+const filteredSearch = filterCount > 0 || filters.has('q');
+const canonicalPath = categoryPath(category);
+const businessUrl = seoOrigin(Astro.url);
+const organization = home && {
+  '@context': 'https://schema.org', '@type': 'Organization',
+  name: 'Agua Máquinas', url: new URL('/', businessUrl).href,
+  logo: new URL('/agua-logo.webp', businessUrl).href,
+};
 ---
-<Layout>
+<Layout title={seoTitle} description={seoDescription} canonicalPath={canonicalPath}
+  noindex={filteredSearch || Boolean(category && !machines.length)} schema={organization}>
   <div class="catalog-intro">
     <HomeCarousel campaigns={campaigns} inquiryHref={inquiryHref} />
     <CatalogCount total={publicListings.length + referenceEquipment.length} />
@@ -85,7 +96,8 @@ const filterCount = ['provincia', 'formato', 'estado'].filter(key => filters.has
   </category-tabs>
   <section class="wrap catalog" id="catalogo" aria-labelledby="catalog-title">
     <div class="catalog-heading">
-      <h1 id="catalog-title">{category ? categories[category] : 'Catálogo de equipos'}</h1>
+      <h1 id="catalog-title">{seoTitle}</h1>
+      {category && !filteredSearch && machines.length > 0 && <p>{seoDescription}</p>}
       <p>{count || '0 equipos'}{filters.get('q') && ` para «${filters.get('q')}»`}</p>
     </div>
     <div class="catalog-controls">

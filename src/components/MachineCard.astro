@@ -5,7 +5,7 @@ import { getPhotos } from '../lib/db.mjs';
 const { machine, params, priority, promotion, compact = false } = Astro.props;
 const badge = promotion ?? (machine.reference ? 'Referencia' : undefined);
 const photo = getPhotos(machine)[0];
-const location = machine.locality?.trim() || machine.province;
+const location = machine.locality?.trim() || machine.province || 'Ubicación a confirmar';
 const query = params.toString();
 const href = `/equipos/${machine.ref}${query ? `?${query}` : ''}`;
 ---
@@ -20,7 +20,7 @@ const href = `/equipos/${machine.ref}${query ? `?${query}` : ''}`;
   </div>
   <div class="card-body">
     <h3><a href={href}>{machine.title}</a></h3>
-    <p class="card-status"><span>{conditions[machine.condition]}</span>{badge && <span class:list={['card-promotion', promotion && 'is-promoted']}>{badge}</span>}</p>
+    <p class="card-status">{conditions[machine.condition] && <span>{conditions[machine.condition]}</span>}{badge && <span class:list={['card-promotion', promotion && 'is-promoted']}>{badge}</span>}</p>
     <p class="card-location"><Icon name="pin" size={15} />{location}</p>
     <div class="card-bottom"><strong class:list={[machine.reference && 'price-unlisted']}>{machine.reference ? 'Sin precio publicado' : priceLabel(machine)}</strong></div>
   </div>
